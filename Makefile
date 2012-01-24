@@ -35,7 +35,8 @@ parity-test:
 ## Release targets
 ##
 rel: deps compile
-	@./rebar compile generate  $(OVERLAY_VARS)
+	@./rebar compile
+	@./rebar skip_deps=true generate $(OVERLAY_VARS)
 
 relclean:
 	rm -rf rel/bucket_bouncer
