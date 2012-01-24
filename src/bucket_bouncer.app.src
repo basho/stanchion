@@ -1,0 +1,24 @@
+%%-*- mode: erlang -*-
+{application, bucket_bouncer,
+ [
+  {description, "bucket_bouncer"},
+  {vsn, "0.0.1"},
+  {modules, []},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  inets,
+                  crypto,
+                  mochiweb,
+                  webmachine,
+                  lager
+                 ]},
+  {mod, { bucket_bouncer_app, []}},
+  {env, [
+         {bb_ip, "127.0.0.1"},
+         {bb_port, 8080},
+         {riak_ip, "127.0.0.1"},
+         {riak_pb_port, 8087}
+        ]}
+ ]}.
