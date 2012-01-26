@@ -12,5 +12,6 @@
 
 dispatch_table() ->
     [
-     {[buckets], bucket_bouncer_wm_buckets, []}
+     {["buckets"], bucket_bouncer_wm_buckets, []},
+     {["buckets", bucket], bucket_bouncer_wm_bucket, []}
     ].

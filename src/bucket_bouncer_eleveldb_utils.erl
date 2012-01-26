@@ -10,6 +10,7 @@
 
 %% Public API
 -export([open/1,
+         close/1,
          get/3,
          put/4,
          delete/3,
@@ -38,6 +39,12 @@ open(DataDir) ->
 
     lager:debug("Opening LevelDB in ~s with options: ~p\n", [DataDir, Options]),
     eleveldb:open(DataDir, Options).
+
+%% @doc Close an eleveldb instance
+-spec close(db_ref()) -> ok.
+close(_Ref) ->
+    %% No-op; GC handles cleanup
+    ok.
 
 %% @doc Retrieve an object from the eleveldb backend
 -spec get(db_ref(), binary(), read_options()) ->

@@ -16,6 +16,7 @@
          delete_bucket/2,
          delete_object/2,
          from_bucket_name/1,
+         get_admin_creds/0,
          get_buckets/1,
          get_keys_and_objects/2,
          get_object/2,
@@ -166,6 +167,23 @@ from_bucket_name(BucketNameWithPrefix) ->
             {blocks, BucketName};
         <<ObjectsName:ObjectsByteSize/binary, BucketName/binary>> ->
             {objects, BucketName}
+    end.
+
+%% @doc Return the credentials of the admin user
+-spec get_admin_creds() -> {ok, {string(), string()}} | {error, term()}.
+get_admin_creds() ->
+    case application:get_env(bucket_bouncer, admin_key) of
+        {ok, KeyId} ->
+            case application:get_env(bucket_bouncer, admin_secret) of
+                {ok, Secret} ->
+                    {ok, {KeyId, Secret}};
+                undefined ->
+                    lager:warning("The admin user's secret has not been defined."),
+                    {error, secret_undefined}
+            end;
+        undefined ->
+            lager:warning("The admin user's key id has not been defined."),
+            {error, key_id_undefined}
     end.
 
 %% @doc Return a user's buckets.
