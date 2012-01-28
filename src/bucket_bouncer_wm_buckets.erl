@@ -20,11 +20,8 @@
 -include_lib("webmachine/include/webmachine.hrl").
 
 
-init(Config) ->
-    %% Check if authentication is disabled and
-    %% set that in the context.
-    AuthBypass = proplists:get_value(auth_bypass, Config),
-    {ok, #context{auth_bypass=AuthBypass}}.
+init(_Config) ->
+    {ok, #context{}}.
 
 -spec service_available(term(), term()) -> {true, term(), term()}.
 service_available(RD, Ctx) ->
@@ -35,14 +32,14 @@ malformed_request(RD, Ctx) ->
     {false, RD, Ctx}.
 
 %% @doc Check that the request is from the admin user
-authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
+authorized(RD, Ctx) ->
     AuthHeader = wrq:get_req_header("authorization", RD),
-    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
+    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader) of
         {ok, AuthMod, Args} ->
             case AuthMod:authenticate(RD, Args) of
-                {ok, User} ->
+                ok ->
                     %% Authentication succeeded
-                    {false, RD, Ctx#context{user=User}};
+                    {true, RD, Ctx};
                 {error, _Reason} ->
                     %% Authentication failed, deny access
                     bucket_bouncer_response:api_error(access_denied, RD, Ctx)
@@ -74,32 +71,20 @@ content_types_accepted(RD, Ctx) ->
 
 -spec to_xml(term(), term()) ->
                     {iolist(), term(), term()}.
-to_xml(RD, Ctx=#context{user=User}) ->
-    BucketName = wrq:path_info(bucket, RD),
-    Bucket = hd([B || B <- bucket_bouncer_utils:get_buckets(User), B#moss_bucket.name =:= BucketName]),
-    MOSSBucket = bucket_bouncer_utils:to_bucket_name(objects, list_to_binary(Bucket#moss_bucket.name)),
-    Prefix = list_to_binary(wrq:get_qs_value("prefix", "", RD)),
-    case bucket_bouncer_utils:get_keys_and_objects(MOSSBucket, Prefix) of
-        {ok, KeyObjPairs} ->
-            bucket_bouncer_response:list_bucket_response(User,
-                                                         Bucket,
-                                                         KeyObjPairs,
-                                                         RD,
-                                                         Ctx);
-        {error, Reason} ->
-            bucket_bouncer_response:api_error(Reason, RD, Ctx)
-    end.
-
+to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
+    Buckets = bucket_bouncer_utils:get_buckets(OwnerId),
+    bucket_bouncer_response:list_bucket_response(Buckets,
+                                                 RD,
+                                                 Ctx).
 %% TODO:
 %% Add content_types_accepted when we add
 %% in PUT and POST requests.
-accept_body(ReqData, Ctx=#context{user=User}) ->
-    case bucket_bouncer_utils:create_bucket(User#moss_user.key_id,
-                                            wrq:path_info(bucket, ReqData)) of
+accept_body(ReqData, Ctx) ->
+    Bucket = list_to_binary(wrq:get_qs_value("name", "", ReqData)),
+    RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
+    case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
         ok ->
             {{halt, 200}, ReqData, Ctx};
-        ignore ->
-            bucket_bouncer_response:api_error(bucket_already_exists, ReqData, Ctx);
         {error, Reason} ->
-            bucket_bouncer_response:api_error(Reason, ReqData, Ctx)
+            riak_moss_s3_response:api_error(Reason, ReqData, Ctx)
     end.

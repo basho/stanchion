@@ -8,10 +8,7 @@
 
 -export([service_available/2,
          parse_auth_header/2,
-         ensure_doc/1,
-         iso_8601_datetime/0,
-         streaming_get/1,
-         user_record_to_proplist/1]).
+         iso_8601_datetime/0]).
 
 -include("bucket_bouncer.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
@@ -48,42 +45,6 @@ parse_auth_header("AWS " ++ Key, _) ->
     end;
 parse_auth_header(_, _) ->
     {ok, bucket_bouncer_blockall_auth, [unkown_auth_scheme]}.
-
-
-%% @doc Utility function for accessing
-%%      a riakc_obj without retrieving
-%%      it again if it's already in the
-%%      Ctx
--spec ensure_doc(term()) -> term().
-ensure_doc(Ctx=#key_context{get_fsm_pid=undefined, bucket=Bucket, key=Key}) ->
-    %% start the get_fsm
-    BinBucket = list_to_binary(Bucket),
-    BinKey = list_to_binary(Key),
-    {ok, Pid} = bucket_bouncer_get_fsm_sup:start_get_fsm(node(), [BinBucket, BinKey]),
-    Metadata = bucket_bouncer_get_fsm:get_metadata(Pid),
-    Ctx#key_context{get_fsm_pid=Pid, doc_metadata=Metadata};
-ensure_doc(Ctx) -> Ctx.
-
-streaming_get(FsmPid) ->
-    case bucket_bouncer_get_fsm:get_next_chunk(FsmPid) of
-        {done, Chunk} ->
-            {Chunk, done};
-        {chunk, Chunk} ->
-            {Chunk, fun() -> streaming_get(FsmPid) end}
-    end.
-
-%% @doc Convert a moss_user record
-%%      into a property list, likely
-%%      for json encoding
--spec user_record_to_proplist(term()) -> list().
-user_record_to_proplist(#moss_user{name=Name,
-                                   key_id=KeyID,
-                                   key_secret=KeySecret,
-                                   buckets = Buckets}) ->
-    [{<<"name">>, list_to_binary(Name)},
-     {<<"key_id">>, list_to_binary(KeyID)},
-     {<<"key_secret">>, list_to_binary(KeySecret)},
-     {<<"buckets">>, Buckets}].
 
 %% @doc Get an ISO 8601 formatted timestamp representing
 %% current time.

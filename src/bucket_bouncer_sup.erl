@@ -66,5 +66,8 @@ init([]) ->
     Web = {webmachine_mochiweb,
            {webmachine_mochiweb, start, [WebConfig]},
            permanent, 5000, worker, dynamic},
-    Processes = [Web],
+    ServerSup = {bucket_bouncer_server_sup,
+                 {bucket_bouncer_server_sup, start_link, []},
+                 permanent, 5000, worker, dynamic},
+    Processes = [ServerSup, Web],
     {ok, { {one_for_one, 10, 10}, Processes} }.

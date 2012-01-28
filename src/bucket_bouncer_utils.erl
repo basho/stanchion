@@ -12,16 +12,14 @@
 -export([binary_to_hexlist/1,
          close_riak_connection/1,
          create_bucket/2,
-         create_user/1,
          delete_bucket/2,
          delete_object/2,
          from_bucket_name/1,
          get_admin_creds/0,
-         get_buckets/1,
+         get_buckets/0,
          get_keys_and_objects/2,
          get_object/2,
          get_object/3,
-         get_user/1,
          list_keys/1,
          list_keys/2,
          pow/2,
@@ -62,84 +60,14 @@ close_riak_connection(Pid) ->
 
 %% @doc Create a bucket in the global namespace or return
 %% an error if it already exists.
-%% TODO:
-%% We need to be checking that
-%% this bucket doesn't already
-%% exist anywhere, since everyone
-%% shares a global bucket namespace
--spec create_bucket(string(), binary()) -> ok.
-create_bucket(KeyID, BucketName) ->
-    Bucket = #moss_bucket{name=BucketName,
-                          creation_date=bucket_bouncer_wm_utils:iso_8601_datetime()},
-    case riak_connection() of
-        {ok, RiakPid} ->
-            %% TODO:
-            %% We don't do anything about
-            %% {error, Reason} here
-            {ok, User} = get_user(KeyID, RiakPid),
-            OldBuckets = User#moss_user.buckets,
-            case [B || B <- OldBuckets, B#moss_bucket.name =:= BucketName] of
-                [] ->
-                    NewUser = User#moss_user{buckets=[Bucket|OldBuckets]},
-                    save_user(NewUser, RiakPid);
-                _ ->
-                    ignore
-            end,
-            close_riak_connection(RiakPid),
-            %% TODO:
-            %% Maybe this should return
-            %% the updated list of buckets
-            %% owned by the user?
-            ok;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
-    end.
-
-%% @doc Create a new MOSS user
--spec create_user(string()) -> {ok, moss_user()}.
-create_user(UserName) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            {KeyID, Secret} = generate_access_creds(UserName),
-            User = #moss_user{name=UserName, key_id=KeyID, key_secret=Secret},
-            save_user(User, RiakPid),
-            close_riak_connection(RiakPid),
-            {ok, User};
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
-    end.
+-spec create_bucket(binary(), string()) -> ok | {error, term()}.
+create_bucket(Bucket, OwnerId) ->
+    do_bucket_op(Bucket, OwnerId, create).
 
 %% @doc Delete a bucket
--spec delete_bucket(string(), binary()) -> ok.
-delete_bucket(KeyID, BucketName) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            %% @TODO This will need to be updated once globally
-            %% unique buckets are enforced.
-            {ok, User} = get_user(KeyID, RiakPid),
-            CurrentBuckets = get_buckets(User),
-
-            %% Buckets can only be deleted if they exist
-            case bucket_exists(CurrentBuckets, BucketName) of
-                true ->
-                    case bucket_empty(BucketName, RiakPid) of
-                        true ->
-                            UpdatedBuckets =
-                                remove_bucket(CurrentBuckets, BucketName),
-                            UpdatedUser =
-                                User#moss_user{buckets=UpdatedBuckets},
-                            Res = save_user(UpdatedUser, RiakPid);
-                        false ->
-                            Res = {error, bucket_not_empty}
-                    end;
-                false ->
-                    Res = {error, no_such_bucket}
-            end,
-            close_riak_connection(RiakPid),
-            Res;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
-    end.
+-spec delete_bucket(binary(), string()) -> ok | {error, term()}.
+delete_bucket(Bucket, OwnerId) ->
+    do_bucket_op(Bucket, OwnerId, delete).
 
 %% @doc Delete an object from Riak
 -spec delete_object(binary(), binary()) -> ok.
@@ -187,9 +115,9 @@ get_admin_creds() ->
     end.
 
 %% @doc Return a user's buckets.
--spec get_buckets(moss_user()) -> [binary()].
-get_buckets(#moss_user{buckets=Buckets}) ->
-    Buckets.
+-spec get_buckets() -> [binary()].
+get_buckets() ->
+    [].
 
 %% @doc Return a list of keys for a bucket along
 %% with their associated objects.
@@ -241,18 +169,6 @@ get_object(BucketName, Key) ->
 get_object(BucketName, Key, RiakPid) ->
     riakc_pb_socket:get(RiakPid, BucketName, Key).
 
-%% @doc Retrieve a MOSS user's information based on their id string.
--spec get_user(string()) -> {ok, term()} | {error, term()}.
-get_user(KeyID) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            Res = get_user(KeyID, RiakPid),
-            close_riak_connection(RiakPid),
-            Res;
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 %% @doc List the keys from a bucket
 -spec list_keys(binary()) -> {ok, [binary()]}.
 list_keys(BucketName) ->
@@ -294,6 +210,12 @@ pow(Base, Power, Acc) ->
         _ ->
             pow(Base, Power - 1, Acc * Base)
     end.
+
+%% @doc Store a new bucket in Riak
+-spec put_bucket(binary(), binary(), pid()) -> ok | {error, term()}.
+put_bucket(Bucket, OwnerId, RiakPid) ->
+    BucketObject = riakc_obj:new(?BUCKETS_BUCKET, Bucket, OwnerId),
+    riakc_pb_socket:put(RiakPid, BucketObject).
 
 %% @doc Store an object in Riak
 -spec put_object(binary(), binary(), binary(), [term()]) -> ok.
@@ -355,75 +277,73 @@ bucket_empty(Bucket, RiakPid) ->
             false
     end.
 
-%% @doc Check if a bucket exists in a list of the user's buckets.
-%% @TODO This will need to change once globally unique buckets
-%% are enforced.
--spec bucket_exists([moss_bucket()], string()) -> boolean().
-bucket_exists(Buckets, CheckBucket) ->
-    SearchResults = [Bucket || Bucket <- Buckets,
-                               Bucket#moss_bucket.name =:= CheckBucket],
-    case SearchResults of
-        [] ->
-            false;
-        _ ->
-            true
+%% ===================================================================
+%% Internal functions
+%% ===================================================================
+
+%% @doc Determine if a bucket is exists and is available
+%% for creation or deletion by the inquiring user.
+-spec bucket_available(binary(), fun(), atom(), pid()) -> true | {false, atom()}.
+bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
+    case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket) of
+        {ok, BucketObj} ->
+            OwnerId = binary_to_term(riakc_obj:get_value(BucketObj)),
+            if
+                OwnerId == ?FREE_BUCKET_MARKER andalso
+                BucketOp == create ->
+                    true;
+                OwnerId == ?FREE_BUCKET_MARKER andalso
+                BucketOp == delete ->
+                    {false, no_such_bucket};
+                OwnerId == RequesterId andalso
+                BucketOp == create ->
+                    true;
+                OwnerId == RequesterId andalso
+                BucketOp == delete ->
+                    case bucket_empty(Bucket, RiakPid) of
+                        true ->
+                            true;
+                        false ->
+                            {false, bucket_not_empty}
+                    end;
+                true ->
+                    {false, bucket_exists}
+            end;
+        {error, notfound} ->
+            case BucketOp of
+                create ->
+                    true;
+                delete ->
+                    {false, no_such_bucket}
+            end;
+        {error, Reason} ->
+            %% @TODO Maybe bubble up this error info
+            lager:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p", [Bucket, Reason]),
+            {false, Reason}
     end.
 
-%% @doc Generate a new set of access credentials for user.
--spec generate_access_creds(string()) -> {binary(), binary()}.
-generate_access_creds(UserName) ->
-    BinUser = list_to_binary(UserName),
-    KeyID = generate_key(BinUser),
-    Secret = generate_secret(BinUser, KeyID),
-    {KeyID, Secret}.
-
-%% @doc Retrieve a MOSS user's information based on their id string.
--spec get_user(string(), pid()) -> {ok, term()} | {error, term()}.
-get_user(KeyID, RiakPid) ->
-    case riakc_pb_socket:get(RiakPid, ?USER_BUCKET, list_to_binary(KeyID)) of
-        {ok, Obj} ->
-            {ok, binary_to_term(riakc_obj:get_value(Obj))};
-        Error ->
-            Error
+%% @doc Perform an operation on a bucket.
+-spec do_bucket_op(binary(), string(), atom()) -> ok | {error, term()}.
+do_bucket_op(Bucket, OwnerId, BucketOp) ->
+    BinOwner = list_to_binary(OwnerId),
+    case riak_connection() of
+        {ok, RiakPid} ->
+            %% Buckets operations can only be completed if the bucket exists
+            %% and the requesting party owns the bucket.
+            case bucket_available(Bucket, BinOwner, BucketOp, RiakPid) of
+                true ->
+                    case BucketOp of
+                        create ->
+                            Value = OwnerId;
+                        delete ->
+                            Value = ?FREE_BUCKET_MARKER
+                    end,
+                    Res = put_bucket(Bucket, Value, RiakPid);
+                {false, Reason1} ->
+                    Res = {error, Reason1}
+            end,
+            close_riak_connection(RiakPid),
+            Res;
+        {error, Reason} ->
+            {error, {riak_connect_failed, Reason}}
     end.
-
-%% @doc Generate an access key for a user
--spec generate_key(binary()) -> string().
-generate_key(UserName) ->
-    Ctx = crypto:hmac_init(sha, UserName),
-    Ctx1 = crypto:hmac_update(Ctx, druuid:v4()),
-    Key = crypto:hmac_final_n(Ctx1, 15),
-    string:to_upper(base64:encode_to_string(Key)).
-
-%% @doc Generate a secret access token for a user
--spec generate_secret(binary(), string()) -> string().
-generate_secret(UserName, Key) ->
-    Bytes = 14,
-    Ctx = crypto:hmac_init(sha, UserName),
-    Ctx1 = crypto:hmac_update(Ctx, list_to_binary(Key)),
-    SecretPart1 = crypto:hmac_final_n(Ctx1, Bytes),
-    Ctx2 = crypto:hmac_init(sha, UserName),
-    Ctx3 = crypto:hmac_update(Ctx2, druuid:v4()),
-    SecretPart2 = crypto:hmac_final_n(Ctx3, Bytes),
-    base64:encode_to_string(
-      iolist_to_binary(<< SecretPart1:Bytes/binary,
-                          SecretPart2:Bytes/binary >>)).
-
-%% @doc Remove a bucket from a user's list of buckets.
-%% @TODO This may need to change once globally unique buckets
-%% are enforced.
--spec remove_bucket([moss_bucket()], string()) -> boolean().
-remove_bucket(Buckets, RemovalBucket) ->
-    FilterFun =
-        fun(Element) ->
-                Element#moss_bucket.name =/= RemovalBucket
-        end,
-    lists:filter(FilterFun, Buckets).
-
-%% @doc Save information about a MOSS user
--spec save_user(moss_user(), pid()) -> ok.
-save_user(User, RiakPid) ->
-    UserObj = riakc_obj:new(?USER_BUCKET, list_to_binary(User#moss_user.key_id), User),
-    %% @TODO Error handling
-    ok = riakc_pb_socket:put(RiakPid, UserObj),
-    ok.

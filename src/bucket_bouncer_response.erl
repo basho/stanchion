@@ -64,14 +64,14 @@ error_response(StatusCode, Code, Message, RD, Ctx) ->
 
 list_all_my_buckets_response(User, RD, Ctx) ->
     BucketsDoc = [{'Bucket',
-                   [{'Name', [B#moss_bucket.name]},
-                    {'CreationDate', [B#moss_bucket.creation_date]}]}
-                  || B <- bucket_bouncer_utils:get_buckets(User)],
-    Contents =  [user_to_xml_owner(User)] ++ [{'Buckets', BucketsDoc}],
+                   [{'Name', [Bucket]},
+                    {'Owner', [Owner]}]}
+                  || {Bucket, Owner} <- bucket_bouncer_utils:get_buckets(User)],
+    Contents =  [User] ++ [{'Buckets', BucketsDoc}],
     XmlDoc = [{'ListAllMyBucketsResult',  Contents}],
     respond(200, export_xml(XmlDoc), RD, Ctx).
 
-list_bucket_response(User, Bucket, KeyObjPairs, RD, Ctx) ->
+list_bucket_response(User, _Bucket, KeyObjPairs, RD, Ctx) ->
     %% @TODO Once the optimization for storing small objects
     %% is completed, a check will be required either here or
     %% in `bucket_bouncer_lfs_utils' to determine if the object
@@ -93,7 +93,7 @@ list_bucket_response(User, Bucket, KeyObjPairs, RD, Ctx) ->
                                                   {'Size', [Size]},
                                                   {'LastModified', [LastModified]},
                                                   {'ETag', [ETag]},
-                                                  {'Owner', [user_to_xml_owner(User)]}]};
+                                                  {'Owner', [User]}]};
                                 false ->
                                     undefined
                             end;
@@ -104,20 +104,10 @@ list_bucket_response(User, Bucket, KeyObjPairs, RD, Ctx) ->
                     end
                 end
                 || {Key, ObjResp} <- KeyObjPairs],
-    BucketProps = [{'Name', [Bucket#moss_bucket.name]},
-                    {'Prefix', []},
-                    {'Marker', []},
-                    {'MaxKeys', ["1000"]},
-                    {'Delimiter', ["/"]},
-                    {'IsTruncated', ["false"]}],
-    XmlDoc = [{'ListBucketResult', BucketProps++
+    XmlDoc = [{'ListBucketResult',
                    lists:filter(fun(E) -> E /= undefined end,
                                 Contents)}],
     respond(200, export_xml(XmlDoc), RD, Ctx).
-
-user_to_xml_owner(#moss_user{key_id=KeyId, name=Name}) ->
-    {'Owner', [{'ID', [KeyId]},
-               {'DisplayName', [Name]}]}.
 
 export_xml(XmlDoc) ->
     unicode:characters_to_binary(

@@ -22,8 +22,8 @@
 
 %% API
 -export([start_link/0,
-         create_bucket/3,
-         delete_bucket/3,
+         create_bucket/2,
+         delete_bucket/2,
          stop/1]).
 
 %% gen_server callbacks
@@ -34,9 +34,9 @@
          terminate/2,
          code_change/3]).
 
--record(state, {db_ref :: binary(),
-                data_dir :: string(),
-                storage_module :: atom()}).
+-record(state, {riak_ip :: string(),
+                riak_port :: pos_integer(),
+                buckets_bucket :: binary()}).
 -type state() :: #state{}.
 
 
@@ -47,17 +47,17 @@
 %% @doc Start a `bucket_bouncer_server'.
 -spec start_link() -> {ok, pid()} | {error, term()}.
 start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, [], []).
 
 %% @doc Attempt to create a bucket
--spec create_bucket(pid(), binary(), binary()) -> ok | {error, term()}.
-create_bucket(Pid, Bucket, UserId) ->
-    gen_server:call(Pid, {create_bucket, Bucket, UserId}).
+-spec create_bucket(binary(), binary()) -> ok | {error, term()}.
+create_bucket(Bucket, UserId) ->
+    gen_server:call(?MODULE, {create_bucket, Bucket, UserId}).
 
 %% @doc Attempt to delete a bucket
--spec delete_bucket(pid(), binary(), binary()) -> ok | {error, term()}.
-delete_bucket(Pid, Bucket, UserId) ->
-    gen_server:call(Pid, {delete_bucket, Bucket, UserId}).
+-spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
+delete_bucket(Bucket, UserId) ->
+    gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}).
 
 stop(Pid) ->
     gen_server:cast(Pid, stop).
@@ -68,34 +68,24 @@ stop(Pid) ->
 
 %% @doc Initialize the server.
 -spec init([] | {test, [atom()]}) -> {ok, state()} | {stop, term()}.
-init([StorageMod, DataDir]) ->
-    %% Open an eleveldb instance
-    case StorageMod:open(DataDir) of
-        {ok, Ref} ->
-            {ok, #state{db_ref=Ref,
-                        data_dir=DataDir,
-                        storage_module=StorageMod}};
-        {error, Reason} ->
-            lager:error("Failed to establish connection to Riak. Reason: ~p",
-                        [Reason]),
-            {stop, riak_connect_failed}
-    end;
+init([]) ->
+    {ok, #state{}};
 init(test) ->
-      {ok, #state{storage_module=riak_storage_dummy}}.
+      {ok, #state{}}.
 
 %% @doc Handle synchronous commands issued via exported functions.
 -spec handle_call(term(), {pid(), term()}, state()) ->
                          {reply, ok, state()}.
 handle_call({create_bucket, Bucket, OwnerId},
-            From,
-            State=#state{db_ref=Ref,
-                         storage_module=StorageMod}) ->
-    {reply, ok, State};
+            _From,
+            State=#state{}) ->
+    Result = bucket_bouncer_utils:create_bucket(Bucket, OwnerId),
+    {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
-            From,
-            State=#state{db_ref=Ref,
-                         storage_module=StorageMod}) ->
-    {reply, ok, State};
+            _From,
+            State=#state{}) ->
+    Result = bucket_bouncer_utils:delete_bucket(Bucket, OwnerId),
+    {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
@@ -103,13 +93,10 @@ handle_call(_Msg, _From, State) ->
 %% the exported functions.
 -spec handle_cast(term(), state()) ->
                          {noreply, state()}.
-handle_cast(list_buckets, State=#state{db_ref=Ref,
-                                       storage_module=StorageMod}) ->
+handle_cast(list_buckets, State) ->
     %% @TODO Handle bucket listing and reply
     {noreply, State};
-handle_cast(stop, State=#state{db_ref=Ref,
-                               storage_module=StorageMod}) ->
-    StorageMod:close(Ref),
+handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Event, State) ->
     lager:warning("Received unknown cast event: ~p", [Event]),
