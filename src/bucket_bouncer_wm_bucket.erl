@@ -42,6 +42,7 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
         {ok, AuthMod, Args} ->
             case AuthMod:authenticate(RD, Args) of
                 ok ->
+                    lager:info("Authorized"),
                     %% Authentication succeeded
                     {true, RD, Ctx};
                 {error, _Reason} ->
@@ -99,6 +100,7 @@ accept_body(ReqData, Ctx) ->
 delete_resource(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:path_info(bucket, ReqData)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
+    lager:info("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case bucket_bouncer_server:delete_bucket(Bucket, RequesterId) of
         ok ->
             {true, ReqData, Ctx};

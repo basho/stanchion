@@ -9,7 +9,7 @@
          respond/4,
          error_response/5,
          list_bucket_response/5,
-         list_all_my_buckets_response/3]).
+         list_buckets_response/3]).
 -define(xml_prolog, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>").
 -include("bucket_bouncer.hrl").
 
@@ -62,20 +62,16 @@ error_response(StatusCode, Code, Message, RD, Ctx) ->
     respond(StatusCode, export_xml(XmlDoc), RD, Ctx).
 
 
-list_all_my_buckets_response(User, RD, Ctx) ->
+list_buckets_response(BucketData, RD, Ctx) ->
     BucketsDoc = [{'Bucket',
-                   [{'Name', [Bucket]},
-                    {'Owner', [Owner]}]}
-                  || {Bucket, Owner} <- bucket_bouncer_utils:get_buckets(User)],
-    Contents =  [User] ++ [{'Buckets', BucketsDoc}],
-    XmlDoc = [{'ListAllMyBucketsResult',  Contents}],
+                   [{'Name', [binary_to_list(Bucket)]},
+                    {'Owner', [binary_to_list(Owner)]}]}
+                  || {Bucket, Owner} <- BucketData],
+    Contents = [{'Buckets', BucketsDoc}],
+    XmlDoc = [{'ListBucketsResult',  Contents}],
     respond(200, export_xml(XmlDoc), RD, Ctx).
 
 list_bucket_response(User, _Bucket, KeyObjPairs, RD, Ctx) ->
-    %% @TODO Once the optimization for storing small objects
-    %% is completed, a check will be required either here or
-    %% in `bucket_bouncer_lfs_utils' to determine if the object
-    %% associated with each key is an `lfs_manifest' or not.
     Contents = [begin
                     KeyString = binary_to_list(Key),
                     LastModified = bucket_bouncer_wm_utils:iso_8601_datetime(),

@@ -16,8 +16,8 @@
          delete_object/2,
          from_bucket_name/1,
          get_admin_creds/0,
-         get_buckets/0,
-         get_keys_and_objects/2,
+         get_buckets/1,
+         get_keys_and_values/1,
          get_object/2,
          get_object/3,
          list_keys/1,
@@ -115,40 +115,17 @@ get_admin_creds() ->
     end.
 
 %% @doc Return a user's buckets.
--spec get_buckets() -> [binary()].
-get_buckets() ->
-    [].
-
-%% @doc Return a list of keys for a bucket along
-%% with their associated objects.
--spec get_keys_and_objects(binary(), binary()) -> {ok, [binary()]}.
-get_keys_and_objects(BucketName, Prefix) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            case list_keys(BucketName, RiakPid) of
-                {ok, Keys} ->
-                    KeyObjPairs =
-                        [{Key, get_object(BucketName, Key, RiakPid)}
-                         || Key <- prefix_filter(Keys, Prefix)],
-                    Res = {ok, KeyObjPairs};
-                {error, Reason1} ->
-                    Res = {error, Reason1}
-            end,
-            close_riak_connection(RiakPid),
-            Res;
+-spec get_buckets(all | binary()) -> [binary()].
+get_buckets(<<>>) ->
+    get_keys_and_values(?BUCKETS_BUCKET);
+get_buckets(OwnerId) ->
+    case get_keys_and_values(?BUCKETS_BUCKET) of
+        {ok, KeyValuePairs} ->
+            [{Key, Value} || {Key, Value} <- KeyValuePairs,
+                           Value == OwnerId];
         {error, Reason} ->
             {error, Reason}
     end.
-
--spec prefix_filter(list(), binary()) -> list().
-prefix_filter(Keys, <<>>) ->
-    Keys;
-prefix_filter(Keys, Prefix) ->
-    PL = size(Prefix),
-    lists:filter(
-      fun(<<P:PL/binary,_/binary>>) when P =:= Prefix -> true;
-         (_) -> false
-      end, Keys).
 
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary()) ->
@@ -186,11 +163,6 @@ list_keys(BucketName) ->
 list_keys(BucketName, RiakPid) ->
     case riakc_pb_socket:list_keys(RiakPid, BucketName) of
         {ok, Keys} ->
-            %% TODO:
-            %% This is a naive implementation,
-            %% the longer-term solution is likely
-            %% going to involve 2i and merging the
-            %% results from each of the vnodes.
             {ok, lists:sort(Keys)};
         {error, Reason} ->
             {error, Reason}
@@ -267,9 +239,9 @@ to_bucket_name(blocks, Name) ->
 %% ===================================================================
 
 %% @doc Check if a bucket is empty
--spec bucket_empty(string(), pid()) -> boolean().
+-spec bucket_empty(binary(), pid()) -> boolean().
 bucket_empty(Bucket, RiakPid) ->
-    ObjBucket = to_bucket_name(objects, list_to_binary(Bucket)),
+    ObjBucket = to_bucket_name(objects, Bucket),
     case list_keys(ObjBucket, RiakPid) of
         {ok, []} ->
             true;
@@ -277,17 +249,13 @@ bucket_empty(Bucket, RiakPid) ->
             false
     end.
 
-%% ===================================================================
-%% Internal functions
-%% ===================================================================
-
 %% @doc Determine if a bucket is exists and is available
 %% for creation or deletion by the inquiring user.
 -spec bucket_available(binary(), fun(), atom(), pid()) -> true | {false, atom()}.
 bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket) of
         {ok, BucketObj} ->
-            OwnerId = binary_to_term(riakc_obj:get_value(BucketObj)),
+            OwnerId = riakc_obj:get_value(BucketObj),
             if
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 BucketOp == create ->
@@ -345,4 +313,37 @@ do_bucket_op(Bucket, OwnerId, BucketOp) ->
             Res;
         {error, Reason} ->
             {error, {riak_connect_failed, Reason}}
+    end.
+
+%% @doc Return a list of keys for a bucket along
+%% with their associated values
+-spec get_keys_and_values(binary()) -> {ok, [{binary(), binary()}]}.
+get_keys_and_values(BucketName) ->
+    case riak_connection() of
+        {ok, RiakPid} ->
+            case list_keys(BucketName, RiakPid) of
+                {ok, Keys} ->
+                    KeyValuePairs =
+                        [{Key, get_value(BucketName, Key, RiakPid)}
+                         || Key <- Keys],
+                    Res = {ok, KeyValuePairs};
+                {error, Reason1} ->
+                    Res = {error, Reason1}
+            end,
+            close_riak_connection(RiakPid),
+            Res;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+%% @doc Extract the value from a Riak object.
+-spec get_value(binary(), binary(), pid()) ->
+                        {ok, binary()} | {error, term()}.
+get_value(BucketName, Key, RiakPid) ->
+    case get_object(BucketName, Key, RiakPid) of
+        {ok, RiakObj} ->
+            riakc_obj:get_value(RiakObj);
+        {error, Reason} ->
+            lager:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
+            <<"unknown">>
     end.

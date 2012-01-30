@@ -61,11 +61,16 @@ content_types_provided(RD, Ctx) ->
 
 -spec to_xml(term(), term()) ->
                     {iolist(), term(), term()}.
-to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
-    Buckets = bucket_bouncer_utils:get_buckets(OwnerId),
-    bucket_bouncer_response:list_bucket_response(Buckets,
-                                                 RD,
-                                                 Ctx).
+to_xml(RD, Ctx) ->
+    OwnerId = list_to_binary(wrq:get_qs_value("owner", "", RD)),
+    case bucket_bouncer_utils:get_buckets(OwnerId) of
+        {ok, BucketData} ->
+            bucket_bouncer_response:list_buckets_response(BucketData,
+                                                          RD,
+                                                          Ctx);
+        {error, Reason} ->
+            bucket_bouncer_s3_response:api_error(Reason, RD, Ctx)
+    end.
 
 %% @doc Create a user from a POST
 %%      and return the user object
@@ -74,7 +79,6 @@ to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
 process_post(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:get_qs_value("name", "", ReqData)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
-    lager:info("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
         ok ->
             {true, ReqData, Ctx};
