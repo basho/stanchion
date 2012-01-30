@@ -11,7 +11,13 @@
 -export([dispatch_table/0]).
 
 dispatch_table() ->
+    case application:get_env(bucket_bouncer, auth_bypass) of
+        {ok, AuthBypass} ->
+            ok;
+        undefined ->
+            AuthBypass = false
+    end,
     [
-     {["buckets"], bucket_bouncer_wm_buckets, []},
-     {["buckets", bucket], bucket_bouncer_wm_bucket, []}
+     {["buckets"], bucket_bouncer_wm_buckets, [{auth_bypass, AuthBypass}]},
+     {["buckets", bucket], bucket_bouncer_wm_bucket, [{auth_bypass, AuthBypass}]}
     ].

@@ -54,7 +54,7 @@ init([]) ->
                  {port, Port},
                  {nodelay, true},
                  {log_dir, "log"},
-                 {rewrite_module, bucket_bouncer_wm_rewrite},
+                 %% {rewrite_module, bucket_bouncer_wm_rewrite},
                  {error_handler, bucket_bouncer_wm_error_handler}],
     case application:get_env(bucket_bouncer, ssl) of
         {ok, SSLOpts} ->

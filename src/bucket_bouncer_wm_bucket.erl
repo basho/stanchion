@@ -8,7 +8,7 @@
 
 -export([init/1,
          service_available/2,
-         authorized/2,
+         is_authorized/2,
          content_types_provided/2,
          malformed_request/2,
          to_xml/2,
@@ -22,7 +22,10 @@
 
 
 init(Config) ->
-    {ok, #context{}}.
+    %% Check if authentication is disabled and
+    %% set that in the context.
+    AuthBypass = proplists:get_value(auth_bypass, Config),
+    {ok, #context{auth_bypass=AuthBypass}}.
 
 -spec service_available(term(), term()) -> {true, term(), term()}.
 service_available(RD, Ctx) ->
@@ -33,9 +36,9 @@ malformed_request(RD, Ctx) ->
     {false, RD, Ctx}.
 
 %% @doc Check that the request is from the admin user
-authorized(RD, Ctx) ->
+is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
     AuthHeader = wrq:get_req_header("authorization", RD),
-    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader) of
+    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
         {ok, AuthMod, Args} ->
             case AuthMod:authenticate(RD, Args) of
                 ok ->

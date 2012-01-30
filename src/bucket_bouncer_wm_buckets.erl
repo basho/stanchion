@@ -8,7 +8,7 @@
 
 -export([init/1,
          service_available/2,
-         authorized/2,
+         is_authorized/2,
          content_types_provided/2,
          malformed_request/2,
          to_xml/2,
@@ -20,8 +20,11 @@
 -include_lib("webmachine/include/webmachine.hrl").
 
 
-init(_Config) ->
-    {ok, #context{}}.
+init(Config) ->
+    %% Check if authentication is disabled and
+    %% set that in the context.
+    AuthBypass = proplists:get_value(auth_bypass, Config),
+    {ok, #context{auth_bypass=AuthBypass}}.
 
 -spec service_available(term(), term()) -> {true, term(), term()}.
 service_available(RD, Ctx) ->
@@ -32,9 +35,9 @@ malformed_request(RD, Ctx) ->
     {false, RD, Ctx}.
 
 %% @doc Check that the request is from the admin user
-authorized(RD, Ctx) ->
+is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
     AuthHeader = wrq:get_req_header("authorization", RD),
-    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader) of
+    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
         {ok, AuthMod, Args} ->
             case AuthMod:authenticate(RD, Args) of
                 ok ->
@@ -82,9 +85,10 @@ to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
 accept_body(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:get_qs_value("name", "", ReqData)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
+    lager:info("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
         ok ->
             {{halt, 200}, ReqData, Ctx};
         {error, Reason} ->
-            riak_moss_s3_response:api_error(Reason, ReqData, Ctx)
+            bucket_bouncer_s3_response:api_error(Reason, ReqData, Ctx)
     end.

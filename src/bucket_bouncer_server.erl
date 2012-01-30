@@ -35,8 +35,7 @@
          code_change/3]).
 
 -record(state, {riak_ip :: string(),
-                riak_port :: pos_integer(),
-                buckets_bucket :: binary()}).
+                riak_port :: pos_integer()}).
 -type state() :: #state{}.
 
 
@@ -47,7 +46,7 @@
 %% @doc Start a `bucket_bouncer_server'.
 -spec start_link() -> {ok, pid()} | {error, term()}.
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Attempt to create a bucket
 -spec create_bucket(binary(), binary()) -> ok | {error, term()}.
