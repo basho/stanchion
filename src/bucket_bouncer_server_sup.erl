@@ -40,7 +40,7 @@ init([]) ->
 
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-    Restart = temporary,
+    Restart = permanent,
     Shutdown = 2000,
     Type = worker,
 
