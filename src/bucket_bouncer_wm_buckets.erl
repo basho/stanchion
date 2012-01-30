@@ -13,8 +13,7 @@
          malformed_request/2,
          to_xml/2,
          allowed_methods/2,
-         content_types_accepted/2,
-         accept_body/2]).
+         process_post/2]).
 
 -include("bucket_bouncer.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
@@ -60,18 +59,6 @@ content_types_provided(RD, Ctx) ->
     %% @TODO Add JSON support
     {[{"application/xml", to_xml}], RD, Ctx}.
 
-%% @spec content_types_accepted(reqdata(), context()) ->
-%%          {[{ContentType::string(), Acceptor::atom()}],
-%%           reqdata(), context()}
-content_types_accepted(RD, Ctx) ->
-    case wrq:get_req_header("content-type", RD) of
-        undefined ->
-            {[{"application/octet-stream", accept_body}], RD, Ctx};
-        CType ->
-            {[{CType, accept_body}], RD, Ctx}
-    end.
-
-
 -spec to_xml(term(), term()) ->
                     {iolist(), term(), term()}.
 to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
@@ -79,16 +66,18 @@ to_xml(RD, Ctx=#context{owner_id=OwnerId}) ->
     bucket_bouncer_response:list_bucket_response(Buckets,
                                                  RD,
                                                  Ctx).
-%% TODO:
-%% Add content_types_accepted when we add
-%% in PUT and POST requests.
-accept_body(ReqData, Ctx) ->
+
+%% @doc Create a user from a POST
+%%      and return the user object
+%%      as JSON
+-spec process_post(term(), term()) -> {true | {halt, pos_integer()}, term(), term()}.
+process_post(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:get_qs_value("name", "", ReqData)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
     lager:info("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
         ok ->
-            {{halt, 200}, ReqData, Ctx};
+            {true, ReqData, Ctx};
         {error, Reason} ->
             bucket_bouncer_s3_response:api_error(Reason, ReqData, Ctx)
     end.

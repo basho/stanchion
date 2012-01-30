@@ -60,12 +60,12 @@ close_riak_connection(Pid) ->
 
 %% @doc Create a bucket in the global namespace or return
 %% an error if it already exists.
--spec create_bucket(binary(), string()) -> ok | {error, term()}.
+-spec create_bucket(binary(), binary()) -> ok | {error, term()}.
 create_bucket(Bucket, OwnerId) ->
     do_bucket_op(Bucket, OwnerId, create).
 
 %% @doc Delete a bucket
--spec delete_bucket(binary(), string()) -> ok | {error, term()}.
+-spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, OwnerId) ->
     do_bucket_op(Bucket, OwnerId, delete).
 
@@ -323,14 +323,13 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), string(), atom()) -> ok | {error, term()}.
+-spec do_bucket_op(binary(), binary(), atom()) -> ok | {error, term()}.
 do_bucket_op(Bucket, OwnerId, BucketOp) ->
-    BinOwner = list_to_binary(OwnerId),
     case riak_connection() of
         {ok, RiakPid} ->
             %% Buckets operations can only be completed if the bucket exists
             %% and the requesting party owns the bucket.
-            case bucket_available(Bucket, BinOwner, BucketOp, RiakPid) of
+            case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
                 true ->
                     case BucketOp of
                         create ->
