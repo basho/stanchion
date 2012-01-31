@@ -77,8 +77,12 @@ to_xml(RD, Ctx) ->
 %%      as JSON
 -spec process_post(term(), term()) -> {true | {halt, pos_integer()}, term(), term()}.
 process_post(ReqData, Ctx) ->
-    Bucket = list_to_binary(wrq:get_qs_value("name", "", ReqData)),
-    RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
+    Body = mochiweb_util:parse_qs(
+             binary_to_list(
+               wrq:req_body(ReqData))),
+    Bucket = list_to_binary(proplists:get_value("name", Body, "")),
+    RequesterId = list_to_binary(proplists:get_value("requester", Body, "")),
+    lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
         ok ->
             {true, ReqData, Ctx};
