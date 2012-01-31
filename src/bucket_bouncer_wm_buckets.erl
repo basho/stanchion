@@ -69,7 +69,7 @@ to_xml(RD, Ctx) ->
                                                           RD,
                                                           Ctx);
         {error, Reason} ->
-            bucket_bouncer_s3_response:api_error(Reason, RD, Ctx)
+            bucket_bouncer_response:api_error(Reason, RD, Ctx)
     end.
 
 %% @doc Create a user from a POST
@@ -87,5 +87,5 @@ process_post(ReqData, Ctx) ->
         ok ->
             {true, ReqData, Ctx};
         {error, Reason} ->
-            bucket_bouncer_s3_response:api_error(Reason, ReqData, Ctx)
+            bucket_bouncer_response:api_error(Reason, ReqData, Ctx)
     end.

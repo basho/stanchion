@@ -275,7 +275,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                             {false, bucket_not_empty}
                     end;
                 true ->
-                    {false, bucket_exists}
+                    {false, bucket_already_exists}
             end;
         {error, notfound} ->
             case BucketOp of
