@@ -8,53 +8,79 @@
 
 -module(bbc).
 
--include("bbc.hrl").
-
--export([create/0,
-         create/3,
-         ip/1,
-         port/1,
-         ping/1,
-         create_bucket/3,
-         delete_bucket/3,
-         list_buckets/1,
-         list_buckets/2
+-export([create_bucket/5,
+         delete_bucket/5,
+         list_buckets/3,
+         list_buckets/4,
+         ping/3
+         %% @TODO update_bucket/3
         ]).
+
+%% @TODO Remove after module development is completed
+-export([stats_url/3,
+         list_buckets_url/4,
+         request/4]).
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
 
-%% @doc Create a client for connecting to `bucket_bouncer' on the
-%% default port on localhost.
--spec create() -> bbc().
-create() ->
-    create("127.0.0.1", 8090, false).
+%% @doc Create a bucket for a requesting party.
+-spec create_bucket(string(),
+                    pos_integer(),
+                    binary(),
+                    binary(),
+                    [{atom(), term()}]) -> ok | {error, term()}.
+create_bucket(Ip, Port, Bucket, Requester, Options) ->
+    Ssl = proplists:get_value(ssl, Options, true),
+    Url = buckets_url(Ip, Port, Ssl),
+    Body= "name=" ++
+        binary_to_list(Bucket) ++
+        "&requester=" ++
+        binary_to_list(Requester),
+    case request(post, Url, ["204"], [], Body) of
+        {ok, "204", _Headers, _ResponseBody} ->
+            ok;
+        {error, {ok, StatusCode, _Headers, ResponseBody}} ->
+            {error, {error_status, StatusCode, ResponseBody}};
+        {error, Error} ->
+            {error, Error}
+    end.
 
-%% @doc Create a client for connecting to a `bucket_bouncer' node.
-%%
-%%      Connections are made to:
-%%      ```http://IP:Port/[buckets[/<bucket>]])'''
-%%      or
-%%      ```https://IP:Port/[buckets[/<bucket>]])'''
--spec create(string(), pos_integer(), boolean()) -> bbc().
-create(IP, Port, Ssl) when is_list(IP),
-                           is_integer(Port),
-                           is_atom(Ssl) ->
-    #bbc{ip=IP, port=Port, ssl=Ssl}.
+%% @doc Delete a bucket. The bucket must be owned by
+%% the requesting party.
+-spec delete_bucket(string(),
+                    pos_integer(),
+                    binary(),
+                    binary(),
+                    [{atom(), term()}]) -> ok | {error, term()}.
+delete_bucket(Ip, Port, Bucket, Requester, Options) ->
+    Ssl = proplists:get_value(ssl, Options, true),
+    Url = bucket_url(Ip, Port, Ssl, Bucket),
+    Body = "requester=" ++ binary_to_list(Requester),
+    case request(delete, Url, ["204"], [], Body) of
+        {ok, "204", _Headers, _} ->
+            ok;
+        {error, {ok, StatusCode, _Headers, ResponseBody}} ->
+            {error, {error_status, StatusCode, ResponseBody}};
+        {error, Error} ->
+            {error, Error}
+    end.
 
-%% @doc Get the IP this client will connect to.
--spec ip(bbc()) -> string().
-ip(#bbc{ip=IP}) -> IP.
+%% @doc List all the buckets that currently have owners.
+-spec list_buckets(string(), pos_integer(), boolean()) -> {ok, [{binary(), binary()}]} | {error, term()}.
+list_buckets(_Ip, _Port, _Ssl) ->
+    {ok, []}.
 
-%% @doc Get the Port this client will connect to.
--spec port(bbc()) -> integer().
-port(#bbc{port=Port}) -> Port.
+%% @doc List all the buckets owned by a particular user.
+-spec list_buckets(string(), pos_integer(), boolean(), binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
+list_buckets(_Ip, _Port, _Ssl, _UserId) ->
+    {ok, []}.
 
 %% @doc Ping the server by requesting the "/ping" resource.
--spec ping(bbc()) -> ok | {error, term()}.
-ping(BBC) ->
-    Url = ping_url(BBC),
+-spec ping(string(), pos_integer(), boolean()) -> ok | {error, term()}.
+ping(Ip, Port, Ssl) ->
+    Url = ping_url(Ip, Port, Ssl),
     lager:debug("Ping URL: ~p~n", [Url]),
     case request(get, Url, ["200","204"]) of
         {ok, _Status, _Headers, _Body} ->
@@ -63,110 +89,53 @@ ping(BBC) ->
             {error, Error}
     end.
 
-%% @doc Create a bucket for a requesting party.
--spec create_bucket(bbc(), binary(), binary()) -> ok | {error, term()}.
-create_bucket(_BBC, _Bucket, _Requester) ->
-    ok.
-
-%% @doc Delete a bucket. The bucket must be owned by
-%% the requesting party.
--spec delete_bucket(bbc(), binary(), binary()) -> ok | {error, term()}.
-delete_bucket(_BBC, _Bucket, _Requester) ->
-    ok.
-
-%% @doc List all the buckets that currently have owners.
--spec list_buckets(bbc()) -> {ok, [{binary(), binary()}]} | {error, term()}.
-list_buckets(_BBC) ->
-    {ok, []}.
-
-%% @doc List all the buckets owned by a particular user.
--spec list_buckets(bbc(), binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
-list_buckets(_BBC, _UserId) ->
-    {ok, []}.
-
-%% @doc Delete the given key from the given bucket.
-%%
-%%      Allowed options are:
-%%      <dl>
-%%        <dt>`rw'</dt>
-%%          <dd>The 'RW' value to use for the delete</dd>
-%%      </dl>
-%% @spec delete(bbc(), bucket(), key(), proplist()) -> ok|{error, term()}
-%% delete(BBC, Bucket, Key, Options) ->
-%%     Qs = delete_q_params(BBC, Options),
-%%     Url = make_url(BBC, Bucket, Key, Qs),
-%%     Headers = [{?HEAD_CLIENT, client_id(BBC, Options)}],
-%%     case request(delete, Url, ["204"], Headers) of
-%%         {ok, "204", _Headers, _Body} -> ok;
-%%         {error, Error}               -> {error, Error}
-%%     end.
-
-%% @doc Get the properties of the given bucket.
-%% @spec get_bucket(bbc(), bucket()) -> {ok, proplist()}|{error, term()}
-%% get_bucket(BBC, Bucket) ->
-%%     Url = make_url(BBC, Bucket, undefined, [{?Q_KEYS, ?Q_FALSE}]),
-%%     case request(get, Url, ["200"]) of
-%%         {ok, "200", _Headers, Body} ->
-%%             {struct, Response} = mochijson2:decode(Body),
-%%             {struct, Props} = proplists:get_value(?JSON_PROPS, Response),
-%%             {ok, bbc_bucket:erlify_props(Props)};
-%%         {error, Error} ->
-%%             {error, Error}
-%%     end.
-
-%% @doc Set the properties of the given bucket.
-%%
-%%      Allowed properties are:
-%%      <dl>
-%%        <dt>`n_val'</dt>
-%%          <dd>The 'N' value to use for storing data in this bucket</dd>
-%%        <dt>`allow_mult'</dt>
-%%          <dd>Whether or not this bucket should allow siblings to
-%%          be created for its keys</dd>
-%%      </dl>
-%% @spec set_bucket(bbc(), bucket(), proplist()) -> ok|{error, term()}
-%% set_bucket(BBC, Bucket, Props0) ->
-%%     Url = make_url(BBC, Bucket, undefined, []),
-%%     Headers =  [{"Content-Type", "application/json"}],
-%%     Props = bbc_bucket:httpify_props(Props0),
-%%     Body = mochijson2:encode({struct, [{?Q_PROPS, {struct, Props}}]}),
-%%     case request(put, Url, ["204"], Headers, Body) of
-%%         {ok, "204", _Headers, _Body} -> ok;
-%%         {error, Error}               -> {error, Error}
-%%     end.
-
-
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
 %% @doc Assemble the root URL for the given client
--spec root_url(bbc()) -> iolist().
-root_url(#bbc{ip=Ip, port=Port, ssl=true}) ->
+-spec root_url(string(), pos_integer(), boolean()) -> [string()].
+root_url(Ip, Port, true) ->
     ["https://", Ip, ":", integer_to_list(Port), "/"];
-root_url(#bbc{ip=Ip, port=Port, ssl=false}) ->
+root_url(Ip, Port, false) ->
     ["http://", Ip, ":", integer_to_list(Port), "/"].
 
 %% @doc Assemble the URL for the ping resource
--spec ping_url(bbc()) -> iolist().
-ping_url(BBC) ->
-    binary_to_list(iolist_to_binary([root_url(BBC), "ping/"])).
+-spec ping_url(string(), pos_integer(), boolean()) -> string().
+ping_url(Ip, Port, Ssl) ->
+    lists:flatten([root_url(Ip, Port, Ssl), "ping/"]).
 
 %% @doc Assemble the URL for the stats resource
--spec stats_url(bbc()) -> iolist().
-stats_url(BBC) ->
-    binary_to_list(iolist_to_binary([root_url(BBC), "stats/"])).
+-spec stats_url(string(), pos_integer(), boolean()) -> string().
+stats_url(Ip, Port, Ssl) ->
+    lists:flatten([root_url(Ip, Port, Ssl), "stats/"]).
+
+%% @doc Assemble the buckets URL
+-spec buckets_url(string(), pos_integer(), boolean()) -> string().
+buckets_url(Ip, Port, Ssl) ->
+    lists:flatten([root_url(Ip, Port, Ssl), "/buckets"]).
+
+%% @doc Assemble the URL of a bucket
+-spec bucket_url(string(), pos_integer(), boolean(), binary()) ->
+                               string().
+bucket_url(Ip, Port, Ssl, Bucket) ->
+    lists:flatten(
+      [root_url(Ip, Port, Ssl),
+       "/buckets/",
+       binary_to_list(Bucket)
+      ]).
 
 %% @doc Assemble the URL for the given bucket and key
-%% @spec make_url(bbc(), bucket(), key(), proplist()) -> iolist()
-make_url(BBC, Bucket, Key, Query) ->
-    binary_to_list(
-      iolist_to_binary(
-        [root_url(BBC),
-         Bucket, "/",
-         [ [Key,"/"] || Key =/= undefined ],
-         [ ["?", mochiweb_util:urlencode(Query)] || Query =/= [] ]
-        ])).
+-spec list_buckets_url(string(), pos_integer(), boolean(), binary()) -> string().
+list_buckets_url(Ip, Port, Ssl, Owner) ->
+    Query =
+        "owner=" ++
+        binary_to_list(Owner),
+    lists:flatten(
+      [root_url(Ip, Port, Ssl),
+       "/buckets",
+       ["?", mochiweb_util:quote_plus(Query)]
+      ]).
 
 %% @doc send an ibrowse request
 request(Method, Url, Expect) ->
@@ -185,26 +154,3 @@ request(Method, Url, Expect, Headers, Body) ->
         Error ->
             Error
     end.
-
-%% @doc stream an ibrowse request
-request_stream(Pid, Method, Url) ->
-    request_stream(Pid, Method, Url, []).
-request_stream(Pid, Method, Url, Headers) ->
-    request_stream(Pid, Method, Url, Headers, []).
-request_stream(Pid, Method, Url, Headers, Body) ->
-    case ibrowse:send_req(Url, Headers, Method, Body,
-                          [{stream_to, Pid},
-                           {response_format, binary}]) of
-        {ibrowse_req_id, ReqId} ->
-            {ok, ReqId};
-        Error ->
-            Error
-    end.
-
-%% @doc Convert a stats-resource response to an erlang-term server
-%%      information proplist.
-erlify_server_info(Props) ->
-    lists:flatten([ erlify_server_info(K, V) || {K, V} <- Props ]).
-erlify_server_info(<<"nodename">>, Name) -> {node, Name};
-erlify_server_info(<<"riak_kv_version">>, Vsn) -> {server_version, Vsn};
-erlify_server_info(_Ignore, _) -> [].
