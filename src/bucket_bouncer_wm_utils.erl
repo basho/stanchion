@@ -23,7 +23,7 @@ service_available(RD, Ctx) ->
 -spec parse_auth_header(string(), boolean()) -> {ok, atom(), [string()]} | {error, term()}.
 parse_auth_header(_, true) ->
     {ok, bucket_bouncer_passthru_auth, []};
-parse_auth_header("AWS " ++ Key, _) ->
+parse_auth_header("MOSS " ++ Key, _) ->
     case string:tokens(Key, ":") of
         [KeyId, KeyData] ->
             {ok, bucket_bouncer_s3_auth, [KeyId, KeyData]};

@@ -12,23 +12,22 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
--export([authenticate/2]).
-
--define(SUBRESOURCES, ["acl", "location", "logging", "notification", "partNumber",
-                       "policy", "requestPayment", "torrent", "uploadId", "uploads",
-                       "versionId", "versioning", "versions", "website"]).
+-export([authenticate/2,
+         request_signature/4]).
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
 
 -spec authenticate(term(), [string()]) -> ok | {error, atom()}.
-authenticate(RD, [Signature]) ->
+authenticate(RD, [KeyId, Signature]) ->
     case bucket_bouncer_utils:get_admin_creds() of
-        {ok, {_KeyId, Secret}} ->
-            CalculatedSignature =
-                calculate_signature(Secret, RD),
-            case check_auth(Signature, CalculatedSignature) of
+        {ok, {AdminKeyId, AdminSecret}} ->
+            CalculatedSignature = signature(AdminSecret, RD),
+            lager:debug("Presented Signature: ~p~nCalculated Signature: ~p~n",
+                        [Signature, CalculatedSignature]),
+            case KeyId == AdminKeyId andalso
+                check_auth(Signature, CalculatedSignature) of
                 true ->
                     ok;
                 _ ->
@@ -38,16 +37,54 @@ authenticate(RD, [Signature]) ->
             {error, invalid_authentication}
     end.
 
+%% Calculate a signature for inclusion in a client request.
+-type http_verb() :: 'GET' | 'HEAD' | 'PUT' | 'POST' | 'DELETE'.
+-spec request_signature(http_verb(),
+                        [{string(), string()}],
+                        string(),
+                        string()) -> string().
+request_signature(HttpVerb, RawHeaders, Path, KeyData) ->
+    Headers = normalize_headers(RawHeaders),
+    BashoHeaders = extract_basho_headers(Headers),
+    case proplists:is_defined("x-basho-date", Headers) of
+        true ->
+            Date = "\n";
+        false ->
+            Date = [proplists:get_value("date", Headers), "\n"]
+    end,
+    case proplists:get_value("content-md5", Headers) of
+        undefined ->
+            CMD5 = [];
+        CMD5 ->
+            ok
+    end,
+    case proplists:get_value("content-type", Headers) of
+        undefined ->
+            ContentType = [];
+        ContentType ->
+            ok
+    end,
+    STS = [atom_to_list(HttpVerb),
+           "\n",
+           CMD5,
+           "\n",
+           ContentType,
+           "\n",
+           Date,
+           BashoHeaders,
+           Path],
+    base64:encode_to_string(
+      crypto:sha_mac(KeyData, STS)).
+
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-calculate_signature(KeyData, RD) ->
+signature(KeyData, RD) ->
     Headers = normalize_headers(get_request_headers(RD)),
-    AmazonHeaders = extract_amazon_headers(Headers),
-    Resource = [canonicalize_resource(RD),
-                canonicalize_qs(lists:sort(wrq:req_qs(RD)))],
-    case proplists:is_defined("x-amz-date", Headers) of
+    BashoHeaders = extract_basho_headers(Headers),
+    Resource = wrq:path(RD),
+    case proplists:is_defined("x-basho-date", Headers) of
         true ->
             Date = "\n";
         false ->
@@ -71,7 +108,7 @@ calculate_signature(KeyData, RD) ->
            ContentType,
            "\n",
            Date,
-           AmazonHeaders,
+           BashoHeaders,
            Resource],
     base64:encode_to_string(
       crypto:sha_mac(KeyData, STS)).
@@ -90,10 +127,10 @@ normalize_headers(Headers) ->
         end,
     ordsets:from_list(lists:foldl(FilterFun, [], Headers)).
 
-extract_amazon_headers(Headers) ->
+extract_basho_headers(Headers) ->
     FilterFun =
         fun({K, V}, Acc) ->
-                case lists:prefix("x-amz-", K) of
+                case lists:prefix("x-basho-", K) of
                     true ->
                         [[K, ":", V, "\n"] | Acc];
                     false ->
@@ -110,72 +147,6 @@ any_to_list(V) when is_binary(V) ->
     binary_to_list(V);
 any_to_list(V) when is_integer(V) ->
     integer_to_list(V).
-
-canonicalize_qs(QS) ->
-    canonicalize_qs(QS, []).
-
-canonicalize_qs([], []) ->
-    [];
-canonicalize_qs([], Acc) ->
-    lists:flatten(["?", Acc]);
-canonicalize_qs([{K, []}|T], Acc) ->
-    case lists:member(K, ?SUBRESOURCES) of
-        true ->
-            canonicalize_qs(T, [K|Acc]);
-        false ->
-            canonicalize_qs(T)
-    end;
-canonicalize_qs([{K, V}|T], Acc) ->
-    case lists:member(K, ?SUBRESOURCES) of
-        true ->
-            canonicalize_qs(T, [[K, "=", V]|Acc]);
-        false ->
-            canonicalize_qs(T)
-    end.
-
-bucket_from_host(undefined, RD) ->
-    wrq:path_info(bucket, RD);
-bucket_from_host(HostHeader, RD) ->
-    HostNoPort = hd(string:tokens(HostHeader, ":")),
-    {ok, RootHost} = application:get_env(bucket_bouncer, moss_root_host),
-    case HostNoPort of
-        RootHost ->
-            wrq:path_info(bucket, RD);
-        Host ->
-            case string:str(HostNoPort, RootHost) of
-                0 ->
-                    wrq:path_info(bucket, RD);
-                I ->
-                    string:substr(Host, 1, I-2)
-            end
-    end.
-
-%% XXX TODO:  this is conditional to make unit tests pass.
-%%            the webmachine resources need to support
-%%            vhost-style bucket addressing so that things
-%%            like path_info([key|bucket]) work properly.
-%%
-%%            the test version of canonicalize_resource
-%%            doesn't use path_info, allowing the unit
-%%            tests to pass.
--ifdef(TEST).
-canonicalize_resource(RD) ->
-    case bucket_from_host(wrq:get_req_header("host", RD), RD) of
-        undefined ->
-            [wrq:path(RD)];
-        Bucket ->
-            ["/", Bucket, wrq:path(RD)]
-    end.
--else.
-canonicalize_resource(RD) ->
-    case {bucket_from_host(wrq:get_req_header("host", RD), RD),
-          wrq:path_tokens(RD)} of
-        {undefined, []} -> ["/"];
-        {Bucket, []} -> ["/", Bucket, "/"];
-        {Bucket, KeyTokens} ->
-            ["/", Bucket, "/", string:join(KeyTokens, "/")]
-    end.
--endif.
 
 %% ===================================================================
 %% Eunit tests

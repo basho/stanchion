@@ -33,16 +33,31 @@
                     [{atom(), term()}]) -> ok | {error, term()}.
 create_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
+    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
     Url = buckets_url(Ip, Port, Ssl),
     Body= "name=" ++
         binary_to_list(Bucket) ++
         "&requester=" ++
         binary_to_list(Requester),
-    case request(post, Url, ["204"], [], Body) of
-        {ok, "204", _Headers, _ResponseBody} ->
+    ReqHeaders = [{"Content-Type", "application/x-www-form-urlencoded"},
+                  {"Content-Md5", content_md5(Body)},
+                  {"Date", httpd_util:rfc1123_date()}],
+    case AuthCreds of
+        {_, _} ->
+            Headers =
+                [{"Authorization", auth_header('POST',
+                                               ReqHeaders,
+                                               "/buckets",
+                                               AuthCreds)} |
+                 ReqHeaders];
+        undefined ->
+            Headers = ReqHeaders
+    end,
+    case request(post, Url, ["204"], Headers, Body) of
+        {ok, "204", _RespHeaders, _RespBody} ->
             ok;
-        {error, {ok, StatusCode, _Headers, ResponseBody}} ->
-            {error, {error_status, StatusCode, ResponseBody}};
+        {error, {ok, StatusCode, _RespHeaders, RespBody}} ->
+            {error, {error_status, StatusCode, RespBody}};
         {error, Error} ->
             {error, Error}
     end.
@@ -56,13 +71,21 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
                     [{atom(), term()}]) -> ok | {error, term()}.
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
+    AuthBypass = proplists:get_value(auth_bypass, Options, false),
     Url = bucket_url(Ip, Port, Ssl, Bucket),
     Body = "requester=" ++ binary_to_list(Requester),
-    case request(delete, Url, ["204"], [], Body) of
-        {ok, "204", _Headers, _} ->
+    case AuthBypass of
+        true ->
+            Headers = [];
+        false ->
+            Headers = [{"Content-Type", "application/x-www-form-urlencoded"},
+                       {"Date", httpd_util:rfc1123_date()}]
+    end,
+    case request(delete, Url, ["204"], Headers, Body) of
+        {ok, "204", _RespHeaders, _} ->
             ok;
-        {error, {ok, StatusCode, _Headers, ResponseBody}} ->
-            {error, {error_status, StatusCode, ResponseBody}};
+        {error, {ok, StatusCode, _RespHeaders, RespBody}} ->
+            {error, {error_status, StatusCode, RespBody}};
         {error, Error} ->
             {error, Error}
     end.
@@ -81,7 +104,6 @@ list_buckets(_Ip, _Port, _Ssl, _UserId) ->
 -spec ping(string(), pos_integer(), boolean()) -> ok | {error, term()}.
 ping(Ip, Port, Ssl) ->
     Url = ping_url(Ip, Port, Ssl),
-    lager:debug("Ping URL: ~p~n", [Url]),
     case request(get, Url, ["200","204"]) of
         {ok, _Status, _Headers, _Body} ->
             ok;
@@ -113,15 +135,15 @@ stats_url(Ip, Port, Ssl) ->
 %% @doc Assemble the buckets URL
 -spec buckets_url(string(), pos_integer(), boolean()) -> string().
 buckets_url(Ip, Port, Ssl) ->
-    lists:flatten([root_url(Ip, Port, Ssl), "/buckets"]).
+    lists:flatten([root_url(Ip, Port, Ssl), "buckets"]).
 
 %% @doc Assemble the URL of a bucket
 -spec bucket_url(string(), pos_integer(), boolean(), binary()) ->
-                               string().
+                        string().
 bucket_url(Ip, Port, Ssl, Bucket) ->
     lists:flatten(
       [root_url(Ip, Port, Ssl),
-       "/buckets/",
+       "buckets/",
        binary_to_list(Bucket)
       ]).
 
@@ -133,7 +155,7 @@ list_buckets_url(Ip, Port, Ssl, Owner) ->
         binary_to_list(Owner),
     lists:flatten(
       [root_url(Ip, Port, Ssl),
-       "/buckets",
+       "buckets",
        ["?", mochiweb_util:quote_plus(Query)]
       ]).
 
@@ -154,3 +176,21 @@ request(Method, Url, Expect, Headers, Body) ->
         Error ->
             Error
     end.
+
+%% @doc Calculate an MD5 hash of a request body.
+-spec content_md5(string()) -> string().
+content_md5(Body) ->
+    bucket_bouncer_utils:binary_to_hexlist(
+      list_to_binary(Body)).
+
+%% @doc Construct a MOSS authentication header
+-spec auth_header(atom(),
+                  [{string(), string()}],
+                  string(),
+                  {string(), string()}) -> string().
+auth_header(HttpVerb, Headers, Path, {AuthKey, AuthSecret}) ->
+    Signature = bucket_bouncer_s3_auth:request_signature(HttpVerb,
+                                                         Headers,
+                                                         Path,
+                                                         AuthSecret),
+    "MOSS " ++ AuthKey ++ ":" ++ Signature.
