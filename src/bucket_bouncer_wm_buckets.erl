@@ -38,7 +38,6 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
     AuthHeader = wrq:get_req_header("authorization", RD),
     case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
         {ok, AuthMod, Args} ->
-            lager:info("AuthMod: ~p~nArgs: ~p~n", [AuthMod, Args]),
             case AuthMod:authenticate(RD, Args) of
                 ok ->
                     %% Authentication succeeded
