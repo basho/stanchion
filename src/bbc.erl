@@ -189,7 +189,7 @@ content_md5(Body) ->
                   string(),
                   {string(), string()}) -> string().
 auth_header(HttpVerb, Headers, Path, {AuthKey, AuthSecret}) ->
-    Signature = bucket_bouncer_s3_auth:request_signature(HttpVerb,
+    Signature = bucket_bouncer_auth:request_signature(HttpVerb,
                                                          Headers,
                                                          Path,
                                                          AuthSecret),

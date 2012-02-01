@@ -26,7 +26,7 @@ parse_auth_header(_, true) ->
 parse_auth_header("MOSS " ++ Key, _) ->
     case string:tokens(Key, ":") of
         [KeyId, KeyData] ->
-            {ok, bucket_bouncer_s3_auth, [KeyId, KeyData]};
+            {ok, bucket_bouncer_auth, [KeyId, KeyData]};
         Other -> Other
     end;
 parse_auth_header(_, false) ->

@@ -4,7 +4,7 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_s3_auth).
+-module(bucket_bouncer_auth).
 
 -include("bucket_bouncer.hrl").
 
