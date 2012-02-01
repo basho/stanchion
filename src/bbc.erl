@@ -34,24 +34,25 @@
 create_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
     AuthCreds = proplists:get_value(auth_creds, Options, undefined),
-    Url = buckets_url(Ip, Port, Ssl),
+    Path = buckets_path([]),
+    Url = buckets_url(Ip, Port, Ssl, Path),
     Body= "name=" ++
         binary_to_list(Bucket) ++
         "&requester=" ++
         binary_to_list(Requester),
-    ReqHeaders = [{"Content-Type", "application/x-www-form-urlencoded"},
-                  {"Content-Md5", content_md5(Body)},
-                  {"Date", httpd_util:rfc1123_date()}],
+    Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
+                {"Content-Md5", content_md5(Body)},
+                {"Date", httpd_util:rfc1123_date()}],
     case AuthCreds of
         {_, _} ->
             Headers =
                 [{"Authorization", auth_header('POST',
-                                               ReqHeaders,
-                                               "/buckets",
+                                               Headers0,
+                                               Path,
                                                AuthCreds)} |
-                 ReqHeaders];
+                 Headers0];
         undefined ->
-            Headers = ReqHeaders
+            Headers = Headers0
     end,
     case request(post, Url, ["204"], Headers, Body) of
         {ok, "204", _RespHeaders, _RespBody} ->
@@ -71,15 +72,23 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
                     [{atom(), term()}]) -> ok | {error, term()}.
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
-    AuthBypass = proplists:get_value(auth_bypass, Options, false),
-    Url = bucket_url(Ip, Port, Ssl, Bucket),
+    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    Path = buckets_path(Bucket),
+    Url = buckets_url(Ip, Port, Ssl, Path),
     Body = "requester=" ++ binary_to_list(Requester),
-    case AuthBypass of
-        true ->
-            Headers = [];
-        false ->
-            Headers = [{"Content-Type", "application/x-www-form-urlencoded"},
-                       {"Date", httpd_util:rfc1123_date()}]
+    Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
+                {"Content-Md5", content_md5(Body)},
+                {"Date", httpd_util:rfc1123_date()}],
+    case AuthCreds of
+        {_, _} ->
+            Headers =
+                [{"Authorization", auth_header('DELETE',
+                                               Headers0,
+                                               Path,
+                                               AuthCreds)} |
+                 Headers0];
+        undefined ->
+            Headers = Headers0
     end,
     case request(delete, Url, ["204"], Headers, Body) of
         {ok, "204", _RespHeaders, _} ->
@@ -118,9 +127,9 @@ ping(Ip, Port, Ssl) ->
 %% @doc Assemble the root URL for the given client
 -spec root_url(string(), pos_integer(), boolean()) -> [string()].
 root_url(Ip, Port, true) ->
-    ["https://", Ip, ":", integer_to_list(Port), "/"];
+    ["https://", Ip, ":", integer_to_list(Port)];
 root_url(Ip, Port, false) ->
-    ["http://", Ip, ":", integer_to_list(Port), "/"].
+    ["http://", Ip, ":", integer_to_list(Port)].
 
 %% @doc Assemble the URL for the ping resource
 -spec ping_url(string(), pos_integer(), boolean()) -> string().
@@ -132,19 +141,20 @@ ping_url(Ip, Port, Ssl) ->
 stats_url(Ip, Port, Ssl) ->
     lists:flatten([root_url(Ip, Port, Ssl), "stats/"]).
 
-%% @doc Assemble the buckets URL
--spec buckets_url(string(), pos_integer(), boolean()) -> string().
-buckets_url(Ip, Port, Ssl) ->
-    lists:flatten([root_url(Ip, Port, Ssl), "buckets"]).
+%% @doc Assemble the path for a bucket request
+-spec buckets_path(binary()) -> [string()].
+buckets_path(Bucket) ->
+    ["/buckets",
+     ["/" ++ binary_to_list(Bucket) || Bucket /= []]
+    ].
 
-%% @doc Assemble the URL of a bucket
--spec bucket_url(string(), pos_integer(), boolean(), binary()) ->
-                        string().
-bucket_url(Ip, Port, Ssl, Bucket) ->
+%% @doc Assemble the URL for a buckets request
+-spec buckets_url(string(), pos_integer(), boolean(), [string()]) ->
+                         string().
+buckets_url(Ip, Port, Ssl, Path) ->
     lists:flatten(
       [root_url(Ip, Port, Ssl),
-       "buckets/",
-       binary_to_list(Bucket)
+       Path
       ]).
 
 %% @doc Assemble the URL for the given bucket and key
@@ -190,7 +200,7 @@ content_md5(Body) ->
                   {string(), string()}) -> string().
 auth_header(HttpVerb, Headers, Path, {AuthKey, AuthSecret}) ->
     Signature = bucket_bouncer_auth:request_signature(HttpVerb,
-                                                         Headers,
-                                                         Path,
-                                                         AuthSecret),
+                                                      Headers,
+                                                      Path,
+                                                      AuthSecret),
     "MOSS " ++ AuthKey ++ ":" ++ Signature.
