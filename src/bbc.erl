@@ -29,7 +29,7 @@
 -spec create_bucket(string(),
                     pos_integer(),
                     binary(),
-                    binary(),
+                    string(),
                     [{atom(), term()}]) -> ok | {error, term()}.
 create_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
@@ -39,7 +39,7 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
     Body= "name=" ++
         binary_to_list(Bucket) ++
         "&requester=" ++
-        binary_to_list(Requester),
+        Requester,
     Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
                 {"Content-Md5", content_md5(Body)},
                 {"Date", httpd_util:rfc1123_date()}],
@@ -68,14 +68,14 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
 -spec delete_bucket(string(),
                     pos_integer(),
                     binary(),
-                    binary(),
+                    string(),
                     [{atom(), term()}]) -> ok | {error, term()}.
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
     AuthCreds = proplists:get_value(auth_creds, Options, undefined),
     Path = buckets_path(Bucket),
     Url = buckets_url(Ip, Port, Ssl, Path),
-    Body = "requester=" ++ binary_to_list(Requester),
+    Body = "requester=" ++ Requester,
     Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
                 {"Content-Md5", content_md5(Body)},
                 {"Date", httpd_util:rfc1123_date()}],
