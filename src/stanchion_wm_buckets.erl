@@ -4,7 +4,7 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_wm_buckets).
+-module(stanchion_wm_buckets).
 
 -export([init/1,
          service_available/2,
@@ -15,7 +15,7 @@
          allowed_methods/2,
          process_post/2]).
 
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
 
 
@@ -27,7 +27,7 @@ init(Config) ->
 
 -spec service_available(term(), term()) -> {true, term(), term()}.
 service_available(RD, Ctx) ->
-    bucket_bouncer_wm_utils:service_available(RD, Ctx).
+    stanchion_wm_utils:service_available(RD, Ctx).
 
 -spec malformed_request(term(), term()) -> {false, term(), term()}.
 malformed_request(RD, Ctx) ->
@@ -36,7 +36,7 @@ malformed_request(RD, Ctx) ->
 %% @doc Check that the request is from the admin user
 is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
     AuthHeader = wrq:get_req_header("authorization", RD),
-    case bucket_bouncer_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
+    case stanchion_wm_utils:parse_auth_header(AuthHeader, AuthBypass) of
         {ok, AuthMod, Args} ->
             case AuthMod:authenticate(RD, Args) of
                 ok ->
@@ -44,7 +44,7 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
                     {true, RD, Ctx};
                 {error, _Reason} ->
                     %% Authentication failed, deny access
-                    bucket_bouncer_response:api_error(access_denied, RD, Ctx)
+                    stanchion_response:api_error(access_denied, RD, Ctx)
             end
     end.
 
@@ -63,13 +63,13 @@ content_types_provided(RD, Ctx) ->
                     {iolist(), term(), term()}.
 to_xml(RD, Ctx) ->
     OwnerId = list_to_binary(wrq:get_qs_value("owner", "", RD)),
-    case bucket_bouncer_utils:get_buckets(OwnerId) of
+    case stanchion_utils:get_buckets(OwnerId) of
         {ok, BucketData} ->
-            bucket_bouncer_response:list_buckets_response(BucketData,
+            stanchion_response:list_buckets_response(BucketData,
                                                           RD,
                                                           Ctx);
         {error, Reason} ->
-            bucket_bouncer_response:api_error(Reason, RD, Ctx)
+            stanchion_response:api_error(Reason, RD, Ctx)
     end.
 
 %% @doc Create a user from a POST
@@ -83,9 +83,9 @@ process_post(ReqData, Ctx) ->
     Bucket = list_to_binary(proplists:get_value("name", Body, "")),
     RequesterId = list_to_binary(proplists:get_value("requester", Body, "")),
     lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
-    case bucket_bouncer_server:create_bucket(Bucket, RequesterId) of
+    case stanchion_server:create_bucket(Bucket, RequesterId) of
         ok ->
             {true, ReqData, Ctx};
         {error, Reason} ->
-            bucket_bouncer_response:api_error(Reason, ReqData, Ctx)
+            stanchion_response:api_error(Reason, ReqData, Ctx)
     end.

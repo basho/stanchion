@@ -4,9 +4,9 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc Supervisor for the `bucket_bouncer' application.
+%% @doc Supervisor for the `stanchion' application.
 
--module(bucket_bouncer_sup).
+-module(stanchion_sup).
 
 -behaviour(supervisor).
 
@@ -34,13 +34,13 @@ start_link() ->
                          integer()},
                         [supervisor:child_spec()]}}.
 init([]) ->
-    case application:get_env(bucket_bouncer, bb_ip) of
+    case application:get_env(stanchion, bb_ip) of
         {ok, Ip} ->
             ok;
         undefined ->
             Ip = "0.0.0.0"
     end,
-    case application:get_env(bucket_bouncer, bb_port) of
+    case application:get_env(stanchion, bb_port) of
         {ok, Port} ->
             ok;
         undefined ->
@@ -49,14 +49,14 @@ init([]) ->
 
     %% Create child specifications
     WebConfig1 = [
-                 {dispatch, bucket_bouncer_web:dispatch_table()},
+                 {dispatch, stanchion_web:dispatch_table()},
                  {ip, Ip},
                  {port, Port},
                  {nodelay, true},
                  {log_dir, "log"},
-                 %% {rewrite_module, bucket_bouncer_wm_rewrite},
-                 {error_handler, bucket_bouncer_wm_error_handler}],
-    case application:get_env(bucket_bouncer, ssl) of
+                 %% {rewrite_module, stanchion_wm_rewrite},
+                 {error_handler, stanchion_wm_error_handler}],
+    case application:get_env(stanchion, ssl) of
         {ok, SSLOpts} ->
             WebConfig = WebConfig1 ++ [{ssl, true},
                                        {ssl_opts, SSLOpts}];
@@ -66,8 +66,8 @@ init([]) ->
     Web = {webmachine_mochiweb,
            {webmachine_mochiweb, start, [WebConfig]},
            permanent, 5000, worker, dynamic},
-    ServerSup = {bucket_bouncer_server_sup,
-                 {bucket_bouncer_server_sup, start_link, []},
+    ServerSup = {stanchion_server_sup,
+                 {stanchion_server_sup, start_link, []},
                  permanent, 5000, worker, dynamic},
     Processes = [ServerSup, Web],
     {ok, { {one_for_one, 10, 10}, Processes} }.

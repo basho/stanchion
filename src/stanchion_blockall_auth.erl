@@ -4,10 +4,10 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_passthru_auth).
+-module(stanchion_blockall_auth).
 
 -export([authenticate/2]).
 
--spec authenticate(term(), [string()]) -> ok.
-authenticate(_RD, _) ->
-    ok.
+-spec authenticate(term(), [string()]) -> {error, atom()}.
+authenticate(_RD, [Reason]) ->
+    {error, Reason}.

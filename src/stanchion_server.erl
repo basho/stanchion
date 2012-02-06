@@ -6,11 +6,11 @@
 
 %% @doc Module to process bucket creation requests.
 
--module(bucket_bouncer_server).
+-module(stanchion_server).
 
 -behaviour(gen_server).
 
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -43,7 +43,7 @@
 %% Public API
 %% ===================================================================
 
-%% @doc Start a `bucket_bouncer_server'.
+%% @doc Start a `stanchion_server'.
 -spec start_link() -> {ok, pid()} | {error, term()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -78,12 +78,12 @@ init(test) ->
 handle_call({create_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
-    Result = bucket_bouncer_utils:create_bucket(Bucket, OwnerId),
+    Result = stanchion_utils:create_bucket(Bucket, OwnerId),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
-    Result = bucket_bouncer_utils:delete_bucket(Bucket, OwnerId),
+    Result = stanchion_utils:delete_bucket(Bucket, OwnerId),
     {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
@@ -128,7 +128,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -ifdef(TEST).
 
-%% @doc Start a `bucket_bouncer_server' for testing.
+%% @doc Start a `stanchion_server' for testing.
 -spec test_link() -> {ok, pid()} | {error, term()}.
 test_link() ->
     gen_server:start_link(?MODULE, test, []).

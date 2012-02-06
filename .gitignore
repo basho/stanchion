@@ -1,7 +1,7 @@
 .eunit/*
 deps/*
 priv/*
-rel/bucket_bouncer
+rel/stanchion
 ebin/*.beam
 ebin/*.app
 doc

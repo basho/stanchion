@@ -3,7 +3,8 @@
 %% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
 %%
 %% -------------------------------------------------------------------
--module(bucket_bouncer_response).
+
+-module(stanchion_response).
 
 -export([api_error/3,
          respond/4,
@@ -11,7 +12,7 @@
          list_bucket_response/5,
          list_buckets_response/3]).
 -define(xml_prolog, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>").
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 
 error_message(invalid_access_key_id) ->
     "The AWS Access Key Id you provided does not exist in our records.";
@@ -74,16 +75,16 @@ list_buckets_response(BucketData, RD, Ctx) ->
 list_bucket_response(User, _Bucket, KeyObjPairs, RD, Ctx) ->
     Contents = [begin
                     KeyString = binary_to_list(Key),
-                    LastModified = bucket_bouncer_wm_utils:iso_8601_datetime(),
+                    LastModified = stanchion_wm_utils:iso_8601_datetime(),
                     case ObjResp of
                         {ok, Obj} ->
                             Manifest = binary_to_term(riakc_obj:get_value(Obj)),
-                            case bucket_bouncer_lfs_utils:is_active(Manifest) of
+                            case stanchion_lfs_utils:is_active(Manifest) of
                                 true ->
                                     Size = integer_to_list(
-                                             bucket_bouncer_lfs_utils:content_length(Manifest)),
-                                    ETag = "\"" ++ bucket_bouncer_utils:binary_to_hexlist(
-                                                     bucket_bouncer_lfs_utils:content_md5(Manifest))
+                                             stanchion_lfs_utils:content_length(Manifest)),
+                                    ETag = "\"" ++ stanchion_utils:binary_to_hexlist(
+                                                     stanchion_lfs_utils:content_md5(Manifest))
                                         ++ "\"",
                                     {'Contents', [{'Key', [KeyString]},
                                                   {'Size', [Size]},

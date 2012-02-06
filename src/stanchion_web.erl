@@ -4,20 +4,21 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc Convenience functions for setting up the bucket_bouncer HTTP interface.
+%% @doc Convenience functions for setting up the stanchion HTTP interface.
 
--module(bucket_bouncer_web).
+-module(stanchion_web).
 
 -export([dispatch_table/0]).
 
 dispatch_table() ->
-    case application:get_env(bucket_bouncer, auth_bypass) of
+    case application:get_env(stanchion, auth_bypass) of
         {ok, AuthBypass} ->
             ok;
         undefined ->
             AuthBypass = false
     end,
     [
-     {["buckets"], bucket_bouncer_wm_buckets, [{auth_bypass, AuthBypass}]},
-     {["buckets", bucket], bucket_bouncer_wm_bucket, [{auth_bypass, AuthBypass}]}
+     {["buckets"], stanchion_wm_buckets, [{auth_bypass, AuthBypass}]},
+     {["buckets", bucket], stanchion_wm_bucket, [{auth_bypass, AuthBypass}]},
+     {["user"], stanchion_wm_user, []}
     ].

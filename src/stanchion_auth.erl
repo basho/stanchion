@@ -4,9 +4,9 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_auth).
+-module(stanchion_auth).
 
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -21,7 +21,7 @@
 
 -spec authenticate(term(), [string()]) -> ok | {error, atom()}.
 authenticate(RD, [KeyId, Signature]) ->
-    case bucket_bouncer_utils:get_admin_creds() of
+    case stanchion_utils:get_admin_creds() of
         {ok, {AdminKeyId, AdminSecret}} ->
             CalculatedSignature = signature(AdminSecret, RD),
             lager:debug("Presented Signature: ~p~nCalculated Signature: ~p~n",

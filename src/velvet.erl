@@ -4,9 +4,9 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc Client module for interacting with `bucket_bouncer' application.
+%% @doc Client module for interacting with `stanchion' application.
 
--module(bbc).
+-module(velvet).
 
 -export([create_bucket/5,
          delete_bucket/5,
@@ -190,7 +190,7 @@ request(Method, Url, Expect, Headers, Body) ->
 %% @doc Calculate an MD5 hash of a request body.
 -spec content_md5(string()) -> string().
 content_md5(Body) ->
-    bucket_bouncer_utils:binary_to_hexlist(
+    stanchion_utils:binary_to_hexlist(
       list_to_binary(Body)).
 
 %% @doc Construct a MOSS authentication header
@@ -199,7 +199,7 @@ content_md5(Body) ->
                   string(),
                   {string(), string()}) -> string().
 auth_header(HttpVerb, Headers, Path, {AuthKey, AuthSecret}) ->
-    Signature = bucket_bouncer_auth:request_signature(HttpVerb,
+    Signature = stanchion_auth:request_signature(HttpVerb,
                                                       Headers,
                                                       Path,
                                                       AuthSecret),

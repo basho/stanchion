@@ -3,7 +3,7 @@
 %% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
 %%
 %% -------------------------------------------------------------------
--module(bucket_bouncer_wm_error_handler).
+-module(stanchion_wm_error_handler).
 -export([render_error/3]).
 
 render_error(500, Req, Reason) ->

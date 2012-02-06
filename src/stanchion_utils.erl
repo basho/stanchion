@@ -4,9 +4,9 @@
 %%
 %% -------------------------------------------------------------------
 
-%% @doc bucket_bouncer utility functions
+%% @doc stanchion utility functions
 
--module(bucket_bouncer_utils).
+-module(stanchion_utils).
 
 %% Public API
 -export([binary_to_hexlist/1,
@@ -29,7 +29,7 @@
          riak_connection/2,
          to_bucket_name/2]).
 
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 
 -define(OBJECT_BUCKET_PREFIX, <<"objects:">>).
 -define(BLOCK_BUCKET_PREFIX, <<"blocks:">>).
@@ -100,9 +100,9 @@ from_bucket_name(BucketNameWithPrefix) ->
 %% @doc Return the credentials of the admin user
 -spec get_admin_creds() -> {ok, {string(), string()}} | {error, term()}.
 get_admin_creds() ->
-    case application:get_env(bucket_bouncer, admin_key) of
+    case application:get_env(stanchion, admin_key) of
         {ok, KeyId} ->
-            case application:get_env(bucket_bouncer, admin_secret) of
+            case application:get_env(stanchion, admin_secret) of
                 {ok, Secret} ->
                     {ok, {KeyId, Secret}};
                 undefined ->
@@ -207,13 +207,13 @@ put_object(BucketName, Key, Value, Metadata) ->
 %% using information from the application environment.
 -spec riak_connection() -> {ok, pid()} | {error, term()}.
 riak_connection() ->
-    case application:get_env(bucket_bouncer, riak_ip) of
+    case application:get_env(stanchion, riak_ip) of
         {ok, Host} ->
             ok;
         undefined ->
             Host = "127.0.0.1"
     end,
-    case application:get_env(bucket_bouncer, riak_pb_port) of
+    case application:get_env(stanchion, riak_pb_port) of
         {ok, Port} ->
             ok;
         undefined ->

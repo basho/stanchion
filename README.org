@@ -1,8 +1,10 @@
-* Bucket Bouncer
-/Keeping bucket creation requests in line./
+* Stanchion
+/Keeping requests in line./
 
 ** Overview
-Bucket Bouncer is an application to enforce the serialization of
-bucket creation requests. It consists of a simple HTTP interface and a
-=gen_server= process that interacts with a local Riak instance to manage
-bucket access requests.
+Stanchion is an application to enforce the serialization of
+requests. It consists of two main parts: a simple HTTP interface and a
+=gen_server= process that interacts with a local Riak instance to
+manage requests. The HTTP interface is intended to remain constant
+while the =gen_server= is intended to be replace with a more robust
+and efficient means of handling the serialization.

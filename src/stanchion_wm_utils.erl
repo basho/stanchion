@@ -4,13 +4,13 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_wm_utils).
+-module(stanchion_wm_utils).
 
 -export([service_available/2,
          parse_auth_header/2,
          iso_8601_datetime/0]).
 
--include("bucket_bouncer.hrl").
+-include("stanchion.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
 
 service_available(RD, Ctx) ->
@@ -22,15 +22,15 @@ service_available(RD, Ctx) ->
 %%      anonymously by leving the header empty.
 -spec parse_auth_header(string(), boolean()) -> {ok, atom(), [string()]} | {error, term()}.
 parse_auth_header(_, true) ->
-    {ok, bucket_bouncer_passthru_auth, []};
+    {ok, stanchion_passthru_auth, []};
 parse_auth_header("MOSS " ++ Key, _) ->
     case string:tokens(Key, ":") of
         [KeyId, KeyData] ->
-            {ok, bucket_bouncer_auth, [KeyId, KeyData]};
+            {ok, stanchion_auth, [KeyId, KeyData]};
         Other -> Other
     end;
 parse_auth_header(_, false) ->
-    {ok, bucket_bouncer_blockall_auth, [unkown_auth_scheme]}.
+    {ok, stanchion_blockall_auth, [unkown_auth_scheme]}.
 
 %% @doc Get an ISO 8601 formatted timestamp representing
 %% current time.

@@ -4,9 +4,10 @@
 %%
 %% -------------------------------------------------------------------
 
--define(DEFAULT_TIMEOUT, 60000).
+-module(stanchion_passthru_auth).
 
--record(bbc, {ip :: string(),
-              port :: pos_integer(),
-              ssl :: boolean()}).
--type bbc() :: #bbc{}.
+-export([authenticate/2]).
+
+-spec authenticate(term(), [string()]) -> ok.
+authenticate(_RD, _) ->
+    ok.

@@ -4,10 +4,9 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_blockall_auth).
+-define(DEFAULT_TIMEOUT, 60000).
 
--export([authenticate/2]).
-
--spec authenticate(term(), [string()]) -> {error, atom()}.
-authenticate(_RD, [Reason]) ->
-    {error, Reason}.
+-record(velvet, {ip :: string(),
+              port :: pos_integer(),
+              ssl :: boolean()}).
+-type velvet() :: #velvet{}.

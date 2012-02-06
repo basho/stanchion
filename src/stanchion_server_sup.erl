@@ -4,7 +4,7 @@
 %%
 %% -------------------------------------------------------------------
 
--module(bucket_bouncer_server_sup).
+-module(stanchion_server_sup).
 
 -behaviour(supervisor).
 
@@ -28,7 +28,7 @@ start_link() ->
 %% ===================================================================
 
 %% @doc Initialize this supervisor. This is a `one_for_one',
-%%      whose child spec is for starting a `bucket_bouncer_server' process.
+%%      whose child spec is for starting a `stanchion_server' process.
 -spec init([]) -> {ok, {{supervisor:strategy(),
                          pos_integer(),
                          pos_integer()},
@@ -45,7 +45,7 @@ init([]) ->
     Type = worker,
 
     ServerSpec = {undefined,
-                  {bucket_bouncer_server, start_link, []},
-                  Restart, Shutdown, Type, [bucket_bouncer_server]},
+                  {stanchion_server, start_link, []},
+                  Restart, Shutdown, Type, [stanchion_server]},
 
     {ok, {SupFlags, [ServerSpec]}}.

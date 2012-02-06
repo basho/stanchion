@@ -1,5 +1,5 @@
-REPO		?= bucket_bouncer
-PKG_NAME        ?= bucket-bouncer
+REPO		?= stanchion
+PKG_NAME        ?= stanchion
 PKG_REVISION    ?= $(shell git describe --tags)
 PKG_VERSION	?= $(shell git describe --tags | tr - .)
 PKG_ID           = $(PKG_NAME)-$(PKG_VERSION)
@@ -39,14 +39,14 @@ rel: deps compile
 	@./rebar skip_deps=true generate $(OVERLAY_VARS)
 
 relclean:
-	rm -rf rel/bucket_bouncer
+	rm -rf rel/stanchion
 
 ##
 ## Developer targets
 ##
 stage : rel
-	$(foreach dep,$(wildcard deps/*), rm -rf rel/bucket_bouncer/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/bucket_bouncer/lib;)
-	$(foreach app,$(wildcard apps/*), rm -rf rel/bucket_bouncer/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/bucket_bouncer/lib;)
+	$(foreach dep,$(wildcard deps/*), rm -rf rel/stanchion/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/stanchion/lib;)
+	$(foreach app,$(wildcard apps/*), rm -rf rel/stanchion/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/stanchion/lib;)
 
 devrel:
 	mkdir -p dev
@@ -72,7 +72,7 @@ orgs-README:
 
 APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
 	xmerl webtool eunit syntax_tools compiler
-PLT = $(HOME)/.bucket_bouncer_dialyzer_plt
+PLT = $(HOME)/.stanchion_dialyzer_plt
 
 check_plt: compile
 	dialyzer --check_plt --plt $(PLT) --apps $(APPS) \
