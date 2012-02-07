@@ -20,5 +20,5 @@ dispatch_table() ->
     [
      {["buckets"], stanchion_wm_buckets, [{auth_bypass, AuthBypass}]},
      {["buckets", bucket], stanchion_wm_bucket, [{auth_bypass, AuthBypass}]},
-     {["user"], stanchion_wm_user, []}
+     {["user"], stanchion_wm_user, [{auth_bypass, AuthBypass}]}
     ].
