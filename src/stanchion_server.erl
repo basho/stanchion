@@ -22,7 +22,7 @@
 
 %% API
 -export([start_link/0,
-         create_bucket/2,
+         create_bucket/1,
          create_user/1,
          delete_bucket/2,
          stop/1]).
@@ -50,9 +50,9 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Attempt to create a bucket
--spec create_bucket(binary(), binary()) -> ok | {error, term()}.
-create_bucket(Bucket, UserId) ->
-    gen_server:call(?MODULE, {create_bucket, Bucket, UserId}).
+-spec create_bucket(binary()) -> ok | {error, term()}.
+create_bucket(BucketData) ->
+    gen_server:call(?MODULE, {create_bucket, BucketData}).
 
 %% @doc Attempt to create a bucket
 -spec create_user([{term(), term()}]) -> ok | {error, term()}.
@@ -81,15 +81,16 @@ init(test) ->
 %% @doc Handle synchronous commands issued via exported functions.
 -spec handle_call(term(), {pid(), term()}, state()) ->
                          {reply, ok, state()}.
-handle_call({create_bucket, Bucket, OwnerId},
+handle_call({create_bucket, BucketData},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:create_bucket(Bucket, OwnerId),
+    Result = stanchion_utils:create_bucket(BucketData),
     {reply, Result, State};
-handle_call({create_bucket, UserData},
+handle_call({create_user, UserData},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:create_user(UserData),
+    lager:info("create_user result: ~p", [Result]),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,

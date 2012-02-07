@@ -11,7 +11,7 @@
 %% Public API
 -export([binary_to_hexlist/1,
          close_riak_connection/1,
-         create_bucket/2,
+         create_bucket/1,
          create_user/1,
          delete_bucket/2,
          delete_object/2,
@@ -35,6 +35,8 @@
 
 -define(OBJECT_BUCKET_PREFIX, <<"objects:">>).
 -define(BLOCK_BUCKET_PREFIX, <<"blocks:">>).
+-define(EMAIL_INDEX, <<"email_bin">>).
+-define(ID_INDEX, <<"c_id_bin">>).
 
 %% ===================================================================
 %% Public API
@@ -62,29 +64,38 @@ close_riak_connection(Pid) ->
 
 %% @doc Create a bucket in the global namespace or return
 %% an error if it already exists.
--spec create_bucket(binary(), binary()) -> ok | {error, term()}.
-create_bucket(Bucket, OwnerId) ->
+-spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
+create_bucket(BucketFields) ->
+    %% @TODO Check for missing fields
+    Bucket = proplists:get_value(<<"bucket">>, BucketFields, <<>>),
+    OwnerId = proplists:get_value(<<"requester">>, BucketFields, <<>>),
     do_bucket_op(Bucket, OwnerId, create).
 
 %% @doc Attmpt to create a new user
 -spec create_user([{term(), term()}]) -> ok | {error, term()}.
 create_user(UserFields) ->
     %% @TODO Check for missing fields
-    UserName = proplists:get_value("name", UserFields, ""),
-    DisplayName = proplists:get_value("display_name", UserFields, ""),
-    Email= proplists:get_value("email", UserFields, ""),
-    KeyId = proplists:get_value("key_id", UserFields, ""),
-    KeySecret = proplists:get_value("key_secret", UserFields, ""),
-    CanonicalId = proplists:get_value("canonical_id", UserFields, ""),
+    UserName = proplists:get_value(<<"name">>, UserFields, <<>>),
+    DisplayName = proplists:get_value(<<"display_name">>, UserFields, <<>>),
+    Email= proplists:get_value(<<"email">>, UserFields, <<>>),
+    KeyId = proplists:get_value(<<"key_id">>, UserFields, <<>>),
+    KeySecret = proplists:get_value(<<"key_secret">>, UserFields, <<>>),
+    CanonicalId = proplists:get_value(<<"canonical_id">>, UserFields, <<>>),
     case riak_connection() of
         {ok, RiakPid} ->
-            User = ?MOSS_USER{name=UserName,
-                              display_name=DisplayName,
-                              email=Email,
-                              key_id=KeyId,
-                              key_secret=KeySecret,
-                              canonical_id=CanonicalId},
-            Res = save_user(User, RiakPid),
+            lager:info("Checking availability of ~p", [Email]),
+            case email_available(Email, RiakPid) of
+                true ->
+                    User = ?MOSS_USER{name=UserName,
+                                      display_name=DisplayName,
+                                      email=Email,
+                                      key_id=KeyId,
+                                      key_secret=KeySecret,
+                                      canonical_id=CanonicalId},
+                    Res = save_user(User, RiakPid);
+                {false, Reason1} ->
+                    Res = {error, Reason1}
+            end,
             close_riak_connection(RiakPid),
             Res;
         {error, Reason} ->
@@ -342,6 +353,26 @@ do_bucket_op(Bucket, OwnerId, BucketOp) ->
             {error, {riak_connect_failed, Reason}}
     end.
 
+%% @doc Determine if a user with the specified email
+%% address already exists. There could be consistency
+%% issues here since secondary index queries use
+%% coverage and only consult a single vnode
+%% for a particular key.
+%% @TODO Consider other options that would give more
+%% assurance that a particular email address is available.
+-spec email_available(string(), pid()) -> true | {false, atom()}.
+email_available(Email, RiakPid) ->
+    case riakc_pb_socket:get_index(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
+        {ok, []} ->
+            true;
+        {ok, _} ->
+            {false, user_already_exists};
+        {error, Reason} ->
+            %% @TODO Maybe bubble up this error info
+            lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p", [Email, Reason]),
+            {false, Reason}
+    end.
+
 %% @doc Return a list of keys for a bucket along
 %% with their associated values
 -spec get_keys_and_values(binary()) -> {ok, [{binary(), binary()}]}.
@@ -378,10 +409,10 @@ get_value(BucketName, Key, RiakPid) ->
 %% @doc Save information about a user
 -spec save_user(moss_user(), pid()) -> ok.
 save_user(User, RiakPid) ->
-    Indexes = [{<<"email_bin">>, User?MOSS_USER.email},
-               {<<"c_id_bin">>, User?MOSS_USER.canonical_id}],
+    Indexes = [{?EMAIL_INDEX, User?MOSS_USER.email},
+               {?ID_INDEX, User?MOSS_USER.canonical_id}],
     Meta = dict:store(?MD_INDEX, Indexes, dict:new()),
-    Obj = riakc_obj:new(?USER_BUCKET, list_to_binary(User?MOSS_USER.key_id), User),
+    Obj = riakc_obj:new(?USER_BUCKET, User?MOSS_USER.key_id, User),
     UserObj = riakc_obj:update_metadata(Obj, Meta),
     %% @TODO Error handling
     riakc_pb_socket:put(RiakPid, UserObj).
