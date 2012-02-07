@@ -23,6 +23,7 @@
 %% API
 -export([start_link/0,
          create_bucket/2,
+         create_user/1,
          delete_bucket/2,
          stop/1]).
 
@@ -53,6 +54,11 @@ start_link() ->
 create_bucket(Bucket, UserId) ->
     gen_server:call(?MODULE, {create_bucket, Bucket, UserId}).
 
+%% @doc Attempt to create a bucket
+-spec create_user([{term(), term()}]) -> ok | {error, term()}.
+create_user(UserData) ->
+    gen_server:call(?MODULE, {create_user, UserData}).
+
 %% @doc Attempt to delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, UserId) ->
@@ -79,6 +85,11 @@ handle_call({create_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:create_bucket(Bucket, OwnerId),
+    {reply, Result, State};
+handle_call({create_bucket, UserData},
+            _From,
+            State=#state{}) ->
+    Result = stanchion_utils:create_user(UserData),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,

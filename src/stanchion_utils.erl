@@ -12,6 +12,7 @@
 -export([binary_to_hexlist/1,
          close_riak_connection/1,
          create_bucket/2,
+         create_user/1,
          delete_bucket/2,
          delete_object/2,
          from_bucket_name/1,
@@ -30,6 +31,7 @@
          to_bucket_name/2]).
 
 -include("stanchion.hrl").
+-include_lib("riakc/include/riakc_obj.hrl").
 
 -define(OBJECT_BUCKET_PREFIX, <<"objects:">>).
 -define(BLOCK_BUCKET_PREFIX, <<"blocks:">>).
@@ -63,6 +65,31 @@ close_riak_connection(Pid) ->
 -spec create_bucket(binary(), binary()) -> ok | {error, term()}.
 create_bucket(Bucket, OwnerId) ->
     do_bucket_op(Bucket, OwnerId, create).
+
+%% @doc Attmpt to create a new user
+-spec create_user([{term(), term()}]) -> ok | {error, term()}.
+create_user(UserFields) ->
+    %% @TODO Check for missing fields
+    UserName = proplists:get_value("name", UserFields, ""),
+    DisplayName = proplists:get_value("display_name", UserFields, ""),
+    Email= proplists:get_value("email", UserFields, ""),
+    KeyId = proplists:get_value("key_id", UserFields, ""),
+    KeySecret = proplists:get_value("key_secret", UserFields, ""),
+    CanonicalId = proplists:get_value("canonical_id", UserFields, ""),
+    case riak_connection() of
+        {ok, RiakPid} ->
+            User = ?MOSS_USER{name=UserName,
+                              display_name=DisplayName,
+                              email=Email,
+                              key_id=KeyId,
+                              key_secret=KeySecret,
+                              canonical_id=CanonicalId},
+            Res = save_user(User, RiakPid),
+            close_riak_connection(RiakPid),
+            Res;
+        {error, Reason} ->
+            {error, {riak_connect_failed, Reason}}
+    end.
 
 %% @doc Delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
@@ -347,3 +374,14 @@ get_value(BucketName, Key, RiakPid) ->
             lager:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
             <<"unknown">>
     end.
+
+%% @doc Save information about a user
+-spec save_user(moss_user(), pid()) -> ok.
+save_user(User, RiakPid) ->
+    Indexes = [{<<"email_bin">>, User?MOSS_USER.email},
+               {<<"c_id_bin">>, User?MOSS_USER.canonical_id}],
+    Meta = dict:store(?MD_INDEX, Indexes, dict:new()),
+    Obj = riakc_obj:new(?USER_BUCKET, list_to_binary(User?MOSS_USER.key_id), User),
+    UserObj = riakc_obj:update_metadata(Obj, Meta),
+    %% @TODO Error handling
+    riakc_pb_socket:put(RiakPid, UserObj).
