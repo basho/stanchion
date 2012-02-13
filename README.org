@@ -1,10 +1,130 @@
 * Stanchion
-/Keeping requests in line./
+/Serializing requests since 2012/
 
 ** Overview
 Stanchion is an application to enforce the serialization of
 requests. It consists of two main parts: a simple HTTP interface and a
-=gen_server= process that interacts with a local Riak instance to
-manage requests. The HTTP interface is intended to remain constant
-while the =gen_server= is intended to be replace with a more robust
-and efficient means of handling the serialization.
+processing backend that manages requests and interacts with a local
+Riak instance.
+
+The HTTP interface is intended to be simple and
+maintain backward compatibility while the backend is intended to
+be replaced with a more robust and efficient means of handling the
+serialization.
+
+** HTTP Interface
+The HTTP interface currently has resources to support the creation of
+users and the creation and deletion of buckets.
+
+A POST request to the =/users= resource is used to create a new
+user. The body of the POST should be a JSON document with the
+following structure:
+
+#+BEGIN_EXAMPLE
+[
+    {
+        "name": "JoeBob"
+    },
+    {
+        "display_name": "joe"
+    },
+    {
+        "email": "joe@jobbob.com"
+    },
+    {
+        "key_id": "12345"
+    },
+    {
+        "key_secret": "joesecret"
+    },
+    {
+        "canonical_id": "abababababababababababab"
+    }
+]
+#+END_EXAMPLE
+
+A POST request to the =/buckets= resource is used to create a new
+bucket. The body of the POST should be a JSON document with the
+following structure:
+
+#+BEGIN_EXAMPLE
+[
+    {
+        "bucket": "somebucket"
+    },
+    {
+        "requester": "12345"
+    }
+]
+#+END_EXAMPLE
+
+A DELETE request to the resource of the specific bucket to be deleted
+is the way to delete a bucket. If the bucket is name =mybucket=, a
+DELETE would be issued to =/buckets/mybucket=. The key id of the party
+requesting the bucket deletion should be included as the value of a
+/requester/ query string parameter. If the key id of the requesting
+party is =12345= then the query string would be =?requester=12345=.
+
+** Request Processing Backend
+
+The request processing backend currently consists of a supervised
+=gen_server= process that accepts synchronous requests to create
+users, create buckets, or delete buckets. Forcing all of these request
+types through a single server ensures that they are serialized and
+enables conflicts to be detected and handled. It also comes with
+several weaknesses.
+
+The first weakness is that this approach is *not* highly available. The
+stanchion application will only be running a single server. If is unavailable
+for any reason user and bucket requests will not be allowed to complete
+successfully. This is a trade-off to cleanly enforce uniqueness of bucket names
+and user ids.
+
+A single server process is also susceptible to getting behind in
+request processing.  Its message queue may become backed up, memory
+usage may spike, and in the worst case the erlang virtual machine
+could crash due to all system memory being used. The noticeable effect
+for the end-user is high latency for these bucket or user requests. In
+the near-term there are things that can be done to improve this
+situation, but the long-term best approach is probably some sort of
+distributed coordination that is both more robust and efficient.
+
+** Client Module
+An erlang client module called /velvet/ (velvet connects stanchions to
+enforce queuing) is available to simplify the interaction with
+stanchion.
+
+The velvet module exports functions to create a user, create a bucket,
+and delete a bucket. The interface may be expanded in the future to
+support listing all bucket, listing buckets owned by a particular
+user, and a function to ping the stanchion server.
+
+** Configuration
+*** Local Riak Interface
+Specify appropriate values for the IP address and protocol buffers
+port to use to connect to the local Riak cluster. These are
+represented by the =riak_ip= and =riak_pb_port= properties in the
+/app.config/ file. The default values for the IP and port are
+=127.0.0.1= and =8087= respectively.
+
+*** Admin User Credentials
+Specify the administrative user credentials. These credentials
+_/must/_ be the same as those of the administrative user configured
+for the Riak cluster. Use the =admin_key= and =admin_secret=
+properties in the /app.config/ file to specify the credentials.
+
+** Sample Usage
+*** Create a user
+#+BEGIN_EXAMPLE
+UserJson = "[{\"name\": \"Joe Bob\"},{\"display_name\": \"joe\"},{\"email\": \"joe@jobbob.com\"},{\"key_id\": \"12345\"},{\"key_secret\": \"joesecret\"},{\"canonical_id\": \"abababababababababababab\"}]".
+velvet:create_user("127.0.0.1", 8085, "application/json", UserJson, [{ssl, false}]).
+#+END_EXAMPLE
+*** Create a bucket
+#+BEGIN_EXAMPLE
+BucketJson = "[{\"bucket\": \"somebucket\"},{\"requester\": \"12345\"}]".
+velvet:create_user("127.0.0.1", 8085, "application/json", BucketJson, [{ssl, false}]).
+#+END_EXAMPLE
+*** Delete a bucket
+#+BEGIN_EXAMPLE
+velvet:delete_bucket("127.0.0.1", 8085, <<"somebucket">>, "12345", [{ssl, false}]).
+#+END_EXAMPLE

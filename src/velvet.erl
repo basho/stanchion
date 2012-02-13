@@ -9,6 +9,7 @@
 -module(velvet).
 
 -export([create_bucket/5,
+         create_user/5,
          delete_bucket/5,
          list_buckets/3,
          list_buckets/4,
@@ -28,25 +29,21 @@
 %% @doc Create a bucket for a requesting party.
 -spec create_bucket(string(),
                     pos_integer(),
-                    binary(),
+                    string(),
                     string(),
                     [{atom(), term()}]) -> ok | {error, term()}.
-create_bucket(Ip, Port, Bucket, Requester, Options) ->
+create_bucket(Ip, Port, ContentType, BucketDoc, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
     AuthCreds = proplists:get_value(auth_creds, Options, undefined),
     Path = buckets_path([]),
-    Url = buckets_url(Ip, Port, Ssl, Path),
-    Body= "name=" ++
-        binary_to_list(Bucket) ++
-        "&requester=" ++
-        Requester,
-    Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
-                {"Content-Md5", content_md5(Body)},
+    Url = url(Ip, Port, Ssl, Path),
+    Headers0 = [{"Content-Md5", content_md5(BucketDoc)},
                 {"Date", httpd_util:rfc1123_date()}],
     case AuthCreds of
         {_, _} ->
             Headers =
                 [{"Authorization", auth_header('POST',
+                                               ContentType,
                                                Headers0,
                                                Path,
                                                AuthCreds)} |
@@ -54,11 +51,46 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
         undefined ->
             Headers = Headers0
     end,
-    case request(post, Url, ["204"], Headers, Body) of
-        {ok, "204", _RespHeaders, _RespBody} ->
+    lager:info("URL: ~p", [Url]),
+    case request(post, Url, [201], ContentType, Headers, BucketDoc) of
+        {ok, {{_, 201, _}, _RespHeaders, _RespBody}} ->
             ok;
-        {error, {ok, StatusCode, _RespHeaders, RespBody}} ->
-            {error, {error_status, StatusCode, RespBody}};
+        {error, {ok, {{_, StatusCode, Reason}, _RespHeaders, RespBody}}} ->
+            {error, {error_status, StatusCode, Reason, RespBody}};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+%% @doc Create a bucket for a requesting party.
+-spec create_user(string(),
+                  pos_integer(),
+                  string(),
+                  string(),
+                  [{atom(), term()}]) -> ok | {error, term()}.
+create_user(Ip, Port, ContentType, UserDoc, Options) ->
+    Ssl = proplists:get_value(ssl, Options, true),
+    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    Path = users_path([]),
+    Url = url(Ip, Port, Ssl, Path),
+    Headers0 = [{"Content-Md5", content_md5(UserDoc)},
+                {"Date", httpd_util:rfc1123_date()}],
+    case AuthCreds of
+        {_, _} ->
+            Headers =
+                [{"Authorization", auth_header('POST',
+                                               ContentType,
+                                               Headers0,
+                                               Path,
+                                               AuthCreds)} |
+                 Headers0];
+        undefined ->
+            Headers = Headers0
+    end,
+    case request(post, Url, [201], ContentType, Headers, UserDoc) of
+        {ok, {{_, 201, _}, _RespHeaders, _RespBody}} ->
+            ok;
+        {error, {ok, {{_, StatusCode, Reason}, _RespHeaders, RespBody}}} ->
+            {error, {error_status, StatusCode, Reason, RespBody}};
         {error, Error} ->
             {error, Error}
     end.
@@ -73,16 +105,15 @@ create_bucket(Ip, Port, Bucket, Requester, Options) ->
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
     AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    QS = "?requester=" ++ Requester,
     Path = buckets_path(Bucket),
-    Url = buckets_url(Ip, Port, Ssl, Path),
-    Body = "requester=" ++ Requester,
-    Headers0 = [{"Content-Type", "application/x-www-form-urlencoded"},
-                {"Content-Md5", content_md5(Body)},
-                {"Date", httpd_util:rfc1123_date()}],
+    Url = url(Ip, Port, Ssl, Path ++ QS),
+    Headers0 = [{"Date", httpd_util:rfc1123_date()}],
     case AuthCreds of
         {_, _} ->
             Headers =
                 [{"Authorization", auth_header('DELETE',
+                                               [],
                                                Headers0,
                                                Path,
                                                AuthCreds)} |
@@ -90,11 +121,11 @@ delete_bucket(Ip, Port, Bucket, Requester, Options) ->
         undefined ->
             Headers = Headers0
     end,
-    case request(delete, Url, ["204"], Headers, Body) of
-        {ok, "204", _RespHeaders, _} ->
+    case request(delete, Url, [204], Headers) of
+        {ok, {{_, 204, _}, _RespHeaders, _}} ->
             ok;
-        {error, {ok, StatusCode, _RespHeaders, RespBody}} ->
-            {error, {error_status, StatusCode, RespBody}};
+        {error, {ok, {{_, StatusCode, Reason}, _RespHeaders, RespBody}}} ->
+            {error, {error_status, StatusCode, Reason, RespBody}};
         {error, Error} ->
             {error, Error}
     end.
@@ -113,8 +144,8 @@ list_buckets(_Ip, _Port, _Ssl, _UserId) ->
 -spec ping(string(), pos_integer(), boolean()) -> ok | {error, term()}.
 ping(Ip, Port, Ssl) ->
     Url = ping_url(Ip, Port, Ssl),
-    case request(get, Url, ["200","204"]) of
-        {ok, _Status, _Headers, _Body} ->
+    case request(get, Url, [200, 204]) of
+        {ok, {{_, _Status, _}, _Headers, _Body}} ->
             ok;
         {error, Error} ->
             {error, Error}
@@ -149,9 +180,9 @@ buckets_path(Bucket) ->
     ].
 
 %% @doc Assemble the URL for a buckets request
--spec buckets_url(string(), pos_integer(), boolean(), [string()]) ->
+-spec url(string(), pos_integer(), boolean(), [string()]) ->
                          string().
-buckets_url(Ip, Port, Ssl, Path) ->
+url(Ip, Port, Ssl, Path) ->
     lists:flatten(
       [root_url(Ip, Port, Ssl),
        Path
@@ -169,16 +200,38 @@ list_buckets_url(Ip, Port, Ssl, Owner) ->
        ["?", mochiweb_util:quote_plus(Query)]
       ]).
 
-%% @doc send an ibrowse request
+%% @doc send an HTTP request where `Expect' is a list
+%% of expected HTTP status codes.
+-spec request(atom(), string(), [pos_integer()]) ->
+                     {ok, term(), term(), term()} | {error, term()}.
 request(Method, Url, Expect) ->
-    request(Method, Url, Expect, [], []).
+    request(Method, Url, Expect, [], [], []).
+
+%% @doc send an HTTP request  where `Expect' is a list
+%% of expected HTTP status codes.
+-spec request(atom(), string(), [pos_integer()], [{string(), string()}]) ->
+                     {ok, term(), term(), term()} | {error, term()}.
 request(Method, Url, Expect, Headers) ->
-    request(Method, Url, Expect, Headers, []).
-request(Method, Url, Expect, Headers, Body) ->
-    Accept = {"Accept", "multipart/mixed, */*;q=0.9"},
-    case ibrowse:send_req(Url, [Accept|Headers], Method, Body,
-                          [{response_format, binary}]) of
-        Resp={ok, Status, _, _} ->
+    request(Method, Url, Expect, [], Headers, []).
+
+%% @doc send an HTTP request where `Expect' is a list
+%% of expected HTTP status codes.
+-spec request(atom(),
+              string(),
+              [pos_integer()],
+              string(),
+              [{string(), string()}],
+              string()) -> {ok, term(), term(), term()} | {error, term()}.
+request(Method, Url, Expect, ContentType, Headers, Body) ->
+    case Method == put orelse
+        Method == post of
+        true ->
+            Request = {Url, Headers, ContentType, Body};
+        false ->
+            Request = {Url, Headers}
+    end,
+    case httpc:request(Method, Request, [], []) of
+        Resp={ok, {{_, Status, _}, _RespHeaders, _RespBody}} ->
             case lists:member(Status, Expect) of
                 true -> Resp;
                 false -> {error, Resp}
@@ -195,12 +248,21 @@ content_md5(Body) ->
 
 %% @doc Construct a MOSS authentication header
 -spec auth_header(atom(),
+                  string(),
                   [{string(), string()}],
                   string(),
                   {string(), string()}) -> string().
-auth_header(HttpVerb, Headers, Path, {AuthKey, AuthSecret}) ->
+auth_header(HttpVerb, ContentType, Headers, Path, {AuthKey, AuthSecret}) ->
     Signature = stanchion_auth:request_signature(HttpVerb,
-                                                      Headers,
+                                                      [{"content-type", ContentType} |
+                                                       Headers],
                                                       Path,
                                                       AuthSecret),
     "MOSS " ++ AuthKey ++ ":" ++ Signature.
+
+%% @doc Assemble the path for a users request
+-spec users_path(string()) -> [string()].
+users_path(User) ->
+    ["/users",
+     ["/" ++ User || User /= []]
+    ].

@@ -89,7 +89,7 @@ accept_body(ReqData, Ctx) ->
     case stanchion_utils:update_bucket_owner(Bucket,
                                                   NewOwnerId) of
         ok ->
-            {{halt, 200}, ReqData, Ctx};
+            {true, ReqData, Ctx};
         {error, Reason} ->
             stanchion_response:api_error(Reason, ReqData, Ctx)
     end.
@@ -98,10 +98,7 @@ accept_body(ReqData, Ctx) ->
 -spec delete_resource(term(), term()) -> boolean().
 delete_resource(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:path_info(bucket, ReqData)),
-    Body = mochiweb_util:parse_qs(
-             binary_to_list(
-               wrq:req_body(ReqData))),
-    RequesterId = list_to_binary(proplists:get_value("requester", Body, "")),
+    RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
     lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case stanchion_server:delete_bucket(Bucket, RequesterId) of
         ok ->
