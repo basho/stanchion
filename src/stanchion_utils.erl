@@ -83,7 +83,6 @@ create_user(UserFields) ->
     CanonicalId = proplists:get_value(<<"canonical_id">>, UserFields, <<>>),
     case riak_connection() of
         {ok, RiakPid} ->
-            lager:info("Checking availability of ~p", [Email]),
             case email_available(Email, RiakPid) of
                 true ->
                     User = ?MOSS_USER{name=UserName,

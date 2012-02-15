@@ -90,7 +90,6 @@ handle_call({create_user, UserData},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:create_user(UserData),
-    lager:info("create_user result: ~p", [Result]),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,

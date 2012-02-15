@@ -51,7 +51,6 @@ create_bucket(Ip, Port, ContentType, BucketDoc, Options) ->
         undefined ->
             Headers = Headers0
     end,
-    lager:info("URL: ~p", [Url]),
     case request(post, Url, [201], ContentType, Headers, BucketDoc) of
         {ok, {{_, 201, _}, _RespHeaders, _RespBody}} ->
             ok;
@@ -105,7 +104,7 @@ create_user(Ip, Port, ContentType, UserDoc, Options) ->
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
     AuthCreds = proplists:get_value(auth_creds, Options, undefined),
-    QS = "?requester=" ++ Requester,
+    QS = requester_qs(Requester),
     Path = buckets_path(Bucket),
     Url = url(Ip, Port, Ssl, Path ++ QS),
     Headers0 = [{"Date", httpd_util:rfc1123_date()}],
@@ -259,6 +258,13 @@ auth_header(HttpVerb, ContentType, Headers, Path, {AuthKey, AuthSecret}) ->
                                                       Path,
                                                       AuthSecret),
     "MOSS " ++ AuthKey ++ ":" ++ Signature.
+
+%% @doc Assemble a requester query string for
+%% user in a bucket deletion request.
+-spec requester_qs(string()) -> string().
+requester_qs(Requester) ->
+    "?requester=" ++
+        mochiweb_util:quote_plus(Requester).
 
 %% @doc Assemble the path for a users request
 -spec users_path(string()) -> [string()].
