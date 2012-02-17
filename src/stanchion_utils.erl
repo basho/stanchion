@@ -226,7 +226,7 @@ pow(Base, Power, Acc) ->
 -spec put_bucket(binary(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
 put_bucket(Bucket, OwnerId, Acl, RiakPid) ->
     MetaData  = dict:from_list(
-                  [{?MD_USERMETA, [{"X-Moss-Acl", term_to_binary(Acl)}]}]),
+                  [{?MD_USERMETA, [{?MD_ACL, term_to_binary(Acl)}]}]),
     BucketObject0 = riakc_obj:new(?BUCKETS_BUCKET, Bucket, OwnerId),
     BucketObject = riakc_obj:update_metadata(BucketObject0, MetaData),
     riakc_pb_socket:put(RiakPid, BucketObject).

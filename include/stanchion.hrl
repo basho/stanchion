@@ -33,3 +33,4 @@
 -define(BUCKETS_BUCKET, <<"moss.buckets">>).
 -define(FREE_BUCKET_MARKER, <<"0">>).
 -define(MOSS_USER, #moss_user_v1).
+-define(MD_ACL, <<"X-Moss-Acl">>).
