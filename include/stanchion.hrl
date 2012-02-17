@@ -8,7 +8,8 @@
           email :: string(),
           key_id :: string(),
           key_secret :: string(),
-          canonical_id :: string()}).
+          canonical_id :: string(),
+          buckets=[] :: [term()]}).
 -type moss_user() :: #moss_user_v1{}.
 
 -define(USER_BUCKET, <<"moss.users">>).
