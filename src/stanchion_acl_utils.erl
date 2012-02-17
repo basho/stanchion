@@ -39,6 +39,8 @@ acl(DisplayName, CanonicalId, Grants, CreationTime) ->
 %% @doc Convert a set of JSON terms representing an ACL into
 %% an internal representation.
 -spec acl_from_json(term()) -> acl_v1().
+acl_from_json({struct, Json}) ->
+    process_acl_contents(Json, ?ACL{});
 acl_from_json(Json) ->
     process_acl_contents(Json, ?ACL{}).
 
@@ -181,8 +183,29 @@ process_grant([{Name, Value} | RestObjects], Grant) ->
 %% ACL permissions.
 -spec process_permissions([binary()]) -> acl_perms().
 process_permissions(Perms) ->
-    lists:usort([list_to_existing_atom(
-       binary_to_list(Perm)) || Perm <- Perms]).
+    lists:usort(
+      lists:filter(fun(X) -> X /= undefined end,
+                   [binary_perm_to_atom(Perm) || Perm <- Perms])).
+
+%% @doc Convert a binary permission type to a
+%% corresponding atom or return `undefined' if
+%% the permission is invalid.
+-spec binary_perm_to_atom(binary()) -> atom().
+binary_perm_to_atom(Perm) ->
+    case Perm of
+        <<"FULL_CONTROL">> ->
+            'FULL_CONTROL';
+        <<"READ">> ->
+            'READ';
+        <<"READ_ACP">> ->
+            'READ_ACP';
+        <<"WRITE">> ->
+            'WRITE';
+        <<"WRITE_ACP">> ->
+            'WRITE_ACP';
+        _ ->
+            undefined
+    end.
 
 %% @doc Process the JSON element containing creation time
 %% data for an ACL.
