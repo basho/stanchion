@@ -75,12 +75,12 @@ create_bucket(BucketFields) ->
 -spec create_user([{term(), term()}]) -> ok | {error, term()}.
 create_user(UserFields) ->
     %% @TODO Check for missing fields
-    UserName = proplists:get_value(<<"name">>, UserFields, <<>>),
-    DisplayName = proplists:get_value(<<"display_name">>, UserFields, <<>>),
-    Email= proplists:get_value(<<"email">>, UserFields, <<>>),
-    KeyId = proplists:get_value(<<"key_id">>, UserFields, <<>>),
-    KeySecret = proplists:get_value(<<"key_secret">>, UserFields, <<>>),
-    CanonicalId = proplists:get_value(<<"canonical_id">>, UserFields, <<>>),
+    UserName = binary_to_list(proplists:get_value(<<"name">>, UserFields, <<>>)),
+    DisplayName = binary_to_list(proplists:get_value(<<"display_name">>, UserFields, <<>>)),
+    Email= binary_to_list(proplists:get_value(<<"email">>, UserFields, <<>>)),
+    KeyId = binary_to_list(proplists:get_value(<<"key_id">>, UserFields, <<>>)),
+    KeySecret = binary_to_list(proplists:get_value(<<"key_secret">>, UserFields, <<>>)),
+    CanonicalId = binary_to_list(proplists:get_value(<<"canonical_id">>, UserFields, <<>>)),
     case riak_connection() of
         {ok, RiakPid} ->
             case email_available(Email, RiakPid) of
