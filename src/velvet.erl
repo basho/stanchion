@@ -13,7 +13,8 @@
          delete_bucket/5,
          list_buckets/3,
          list_buckets/4,
-         ping/3
+         ping/3,
+         set_bucket_acl/6
          %% @TODO update_bucket/3
         ]).
 
@@ -150,6 +151,41 @@ ping(Ip, Port, Ssl) ->
             {error, Error}
     end.
 
+%% @doc Create a bucket for a requesting party.
+-spec set_bucket_acl(string(),
+                     pos_integer(),
+                     binary(),
+                     string(),
+                     string(),
+                     [{atom(), term()}]) -> ok | {error, term()}.
+set_bucket_acl(Ip, Port, Bucket, ContentType, AclDoc, Options) ->
+    Ssl = proplists:get_value(ssl, Options, true),
+    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    Path = buckets_path(Bucket, true),
+    Url = url(Ip, Port, Ssl, Path),
+    Headers0 = [{"Content-Md5", content_md5(AclDoc)},
+                {"Date", httpd_util:rfc1123_date()}],
+    case AuthCreds of
+        {_, _} ->
+            Headers =
+                [{"Authorization", auth_header('PUT',
+                                               ContentType,
+                                               Headers0,
+                                               Path,
+                                               AuthCreds)} |
+                 Headers0];
+        undefined ->
+            Headers = Headers0
+    end,
+    case request(put, Url, [204], ContentType, Headers, AclDoc) of
+        {ok, {{_, 204, _}, _RespHeaders, _RespBody}} ->
+            ok;
+        {error, {ok, {{_, StatusCode, Reason}, _RespHeaders, RespBody}}} ->
+            {error, {error_status, StatusCode, Reason, RespBody}};
+        {error, Error} ->
+            {error, Error}
+    end.
+
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
@@ -174,8 +210,14 @@ stats_url(Ip, Port, Ssl) ->
 %% @doc Assemble the path for a bucket request
 -spec buckets_path(binary()) -> [string()].
 buckets_path(Bucket) ->
+    buckets_path(Bucket, false).
+
+%% @doc Assemble the path for a bucket request
+-spec buckets_path(binary(), boolean()) -> [string()].
+buckets_path(Bucket, AclRequest) ->
     ["/buckets",
-     ["/" ++ binary_to_list(Bucket) || Bucket /= []]
+     ["/" ++ binary_to_list(Bucket) || Bucket /= []],
+     ["/acl" || AclRequest == true]
     ].
 
 %% @doc Assemble the URL for a buckets request

@@ -28,6 +28,7 @@
          put_object/4,
          riak_connection/0,
          riak_connection/2,
+         set_bucket_acl/2,
          to_bucket_name/2]).
 
 -include("stanchion.hrl").
@@ -69,7 +70,9 @@ create_bucket(BucketFields) ->
     %% @TODO Check for missing fields
     Bucket = proplists:get_value(<<"bucket">>, BucketFields, <<>>),
     OwnerId = proplists:get_value(<<"requester">>, BucketFields, <<>>),
-    do_bucket_op(Bucket, OwnerId, create).
+    AclJson = proplists:get_value(<<"acl">>, BucketFields, []),
+    Acl = stanchion_acl_utils:acl_from_json(AclJson),
+    do_bucket_op(Bucket, OwnerId, Acl, create).
 
 %% @doc Attmpt to create a new user
 -spec create_user([{term(), term()}]) -> ok | {error, term()}.
@@ -104,7 +107,7 @@ create_user(UserFields) ->
 %% @doc Delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, OwnerId) ->
-    do_bucket_op(Bucket, OwnerId, delete).
+    do_bucket_op(Bucket, OwnerId, ?ACL{}, delete).
 
 %% @doc Delete an object from Riak
 -spec delete_object(binary(), binary()) -> ok.
@@ -221,9 +224,12 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
--spec put_bucket(binary(), binary(), pid()) -> ok | {error, term()}.
-put_bucket(Bucket, OwnerId, RiakPid) ->
-    BucketObject = riakc_obj:new(?BUCKETS_BUCKET, Bucket, OwnerId),
+-spec put_bucket(binary(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
+put_bucket(Bucket, OwnerId, Acl, RiakPid) ->
+    MetaData  = dict:from_list(
+                  [{?MD_USERMETA, [{?MD_ACL, term_to_binary(Acl)}]}]),
+    BucketObject0 = riakc_obj:new(?BUCKETS_BUCKET, Bucket, OwnerId),
+    BucketObject = riakc_obj:update_metadata(BucketObject0, MetaData),
     riakc_pb_socket:put(RiakPid, BucketObject).
 
 %% @doc Store an object in Riak
@@ -263,6 +269,16 @@ riak_connection() ->
 riak_connection(Host, Port) ->
     riakc_pb_socket:start_link(Host, Port).
 
+%% @doc Create a bucket in the global namespace or return
+%% an error if it already exists.
+-spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
+set_bucket_acl(Bucket, FieldList) ->
+    %% @TODO Check for missing fields
+    OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
+    AclJson = proplists:get_value(<<"acl">>, FieldList, []),
+    Acl = stanchion_acl_utils:acl_from_json(AclJson),
+    do_bucket_op(Bucket, OwnerId, Acl, create).
+
 %% Get the proper bucket name for either the MOSS object
 %% bucket or the data block bucket.
 -spec to_bucket_name([objects | blocks], binary()) -> binary().
@@ -298,10 +314,14 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                 BucketOp == create ->
                     true;
                 OwnerId == ?FREE_BUCKET_MARKER andalso
-                BucketOp == delete ->
+                (BucketOp == delete
+                 orelse
+                 BucketOp == update_acl) ->
                     {false, no_such_bucket};
-                OwnerId == RequesterId andalso
-                BucketOp == create ->
+                (OwnerId == RequesterId andalso
+                BucketOp == create)
+                orelse
+                BucketOp == update_acl ->
                     true;
                 OwnerId == RequesterId andalso
                 BucketOp == delete ->
@@ -318,6 +338,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
             case BucketOp of
                 create ->
                     true;
+                update_acl ->
+                    {false, no_such_bucket};
                 delete ->
                     {false, no_such_bucket}
             end;
@@ -328,8 +350,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), binary(), atom()) -> ok | {error, term()}.
-do_bucket_op(Bucket, OwnerId, BucketOp) ->
+-spec do_bucket_op(binary(), binary(), acl_v1(), atom()) -> ok | {error, term()}.
+do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
     case riak_connection() of
         {ok, RiakPid} ->
             %% Buckets operations can only be completed if the bucket exists
@@ -339,10 +361,12 @@ do_bucket_op(Bucket, OwnerId, BucketOp) ->
                     case BucketOp of
                         create ->
                             Value = OwnerId;
+                        update_acl ->
+                            Value = OwnerId;
                         delete ->
                             Value = ?FREE_BUCKET_MARKER
                     end,
-                    Res = put_bucket(Bucket, Value, RiakPid);
+                    Res = put_bucket(Bucket, Value, Acl, RiakPid);
                 {false, Reason1} ->
                     Res = {error, Reason1}
             end,
