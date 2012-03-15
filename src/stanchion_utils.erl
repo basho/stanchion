@@ -224,13 +224,13 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
--spec put_bucket(binary(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
-put_bucket(Bucket, OwnerId, Acl, RiakPid) ->
+-spec put_bucket(term(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
+put_bucket(BucketObj, OwnerId, Acl, RiakPid) ->
     MetaData  = dict:from_list(
                   [{?MD_USERMETA, [{?MD_ACL, term_to_binary(Acl)}]}]),
-    BucketObject0 = riakc_obj:new(?BUCKETS_BUCKET, Bucket, OwnerId),
-    BucketObject = riakc_obj:update_metadata(BucketObject0, MetaData),
-    riakc_pb_socket:put(RiakPid, BucketObject).
+    UpdBucketObj0 = riakc_obj:update_value(BucketObj, OwnerId),
+    UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
+    riakc_pb_socket:put(RiakPid, UpdBucketObj).
 
 %% @doc Store an object in Riak
 -spec put_object(binary(), binary(), binary(), [term()]) -> ok.
@@ -304,7 +304,7 @@ bucket_empty(Bucket, RiakPid) ->
 
 %% @doc Determine if a bucket is exists and is available
 %% for creation or deletion by the inquiring user.
--spec bucket_available(binary(), fun(), atom(), pid()) -> true | {false, atom()}.
+-spec bucket_available(binary(), fun(), atom(), pid()) -> {true, term()} | {false, atom()}.
 bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket) of
         {ok, BucketObj} ->
@@ -312,7 +312,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
             if
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 BucketOp == create ->
-                    true;
+                    {true, BucketObj};
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 (BucketOp == delete
                  orelse
@@ -322,12 +322,12 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                 BucketOp == create)
                 orelse
                 BucketOp == update_acl ->
-                    true;
+                    {true, BucketObj};
                 OwnerId == RequesterId andalso
                 BucketOp == delete ->
                     case bucket_empty(Bucket, RiakPid) of
                         true ->
-                            true;
+                            {true, BucketObj};
                         false ->
                             {false, bucket_not_empty}
                     end;
@@ -337,7 +337,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
         {error, notfound} ->
             case BucketOp of
                 create ->
-                    true;
+                    BucketObj = riakc_obj:new(?BUCKETS_BUCKET, Bucket, RequesterId),
+                    {true, BucketObj};
                 update_acl ->
                     {false, no_such_bucket};
                 delete ->
@@ -357,7 +358,7 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
             %% Buckets operations can only be completed if the bucket exists
             %% and the requesting party owns the bucket.
             case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
-                true ->
+                {true, BucketObj} ->
                     case BucketOp of
                         create ->
                             Value = OwnerId;
@@ -366,7 +367,7 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
                         delete ->
                             Value = ?FREE_BUCKET_MARKER
                     end,
-                    Res = put_bucket(Bucket, Value, Acl, RiakPid);
+                    Res = put_bucket(BucketObj, Value, Acl, RiakPid);
                 {false, Reason1} ->
                     Res = {error, Reason1}
             end,
