@@ -21,26 +21,14 @@ user. The body of the POST should be a JSON document with the
 following structure:
 
 #+BEGIN_EXAMPLE
-[
-    {
-        "name": "JoeBob"
-    },
-    {
-        "display_name": "joe"
-    },
-    {
-        "email": "joe@jobbob.com"
-    },
-    {
-        "key_id": "12345"
-    },
-    {
-        "key_secret": "joesecret"
-    },
-    {
-        "canonical_id": "abababababababababababab"
-    }
-]
+{
+    "name": "JoeBob",
+    "display_name": "joe",
+    "email": "joe@jobbob.com",
+    "key_id": "12345",
+    "key_secret": "joesecret",
+    "canonical_id": "abababababababababababab"
+}
 #+END_EXAMPLE
 
 A POST request to the =/buckets= resource is used to create a new
@@ -48,14 +36,10 @@ bucket. The body of the POST should be a JSON document with the
 following structure:
 
 #+BEGIN_EXAMPLE
-[
-    {
-        "bucket": "somebucket"
-    },
-    {
-        "requester": "12345"
-    }
-]
+{
+    "bucket": "somebucket",
+    "requester": "12345"
+}
 #+END_EXAMPLE
 
 A DELETE request to the resource of the specific bucket to be deleted
@@ -116,12 +100,12 @@ properties in the /app.config/ file to specify the credentials.
 ** Sample Usage
 *** Create a user
 #+BEGIN_EXAMPLE
-UserJson = "[{\"name\": \"Joe Bob\"},{\"display_name\": \"joe\"},{\"email\": \"joe@jobbob.com\"},{\"key_id\": \"12345\"},{\"key_secret\": \"joesecret\"},{\"canonical_id\": \"abababababababababababab\"}]".
+UserJson = "{\"name\": \"Joe Bob\",\"display_name\": \"joe\",\"email\": \"joe@jobbob.com\",\"key_id\": \"12345\",\"key_secret\": \"joesecret\",\"canonical_id\": \"abababababababababababab\"}".
 velvet:create_user("127.0.0.1", 8085, "application/json", UserJson, [{ssl, false}]).
 #+END_EXAMPLE
 *** Create a bucket
 #+BEGIN_EXAMPLE
-BucketJson = "[{\"bucket\": \"somebucket\"},{\"requester\": \"12345\"}]".
+BucketJson = "{\"bucket\": \"somebucket\",\"requester\": \"12345\"}".
 velvet:create_user("127.0.0.1", 8085, "application/json", BucketJson, [{ssl, false}]).
 #+END_EXAMPLE
 *** Delete a bucket

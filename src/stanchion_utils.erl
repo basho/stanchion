@@ -224,7 +224,7 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
--spec put_bucket(term(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
+-spec put_bucket(term(), binary(), acl(), pid()) -> ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, Acl, RiakPid) ->
     MetaData  = dict:from_list(
                   [{?MD_USERMETA, [{?MD_ACL, term_to_binary(Acl)}]}]),
@@ -367,7 +367,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), binary(), acl_v1(), atom()) -> ok | {error, term()}.
+-spec do_bucket_op(binary(), binary(), acl(), atom()) -> ok | {error, term()}.
 do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
     case riak_connection() of
         {ok, RiakPid} ->
