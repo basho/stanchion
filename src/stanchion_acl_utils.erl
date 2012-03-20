@@ -29,7 +29,7 @@
 
 %% @doc Construct an acl. The structure is the same for buckets
 %% and objects.
--spec acl(string(), string(), [acl_grant()], erlang:timestamp()) -> acl_v1().
+-spec acl(string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
 acl(DisplayName, CanonicalId, Grants, CreationTime) ->
     OwnerData = {DisplayName, CanonicalId},
     ?ACL{owner=OwnerData,
@@ -38,7 +38,7 @@ acl(DisplayName, CanonicalId, Grants, CreationTime) ->
 
 %% @doc Convert a set of JSON terms representing an ACL into
 %% an internal representation.
--spec acl_from_json(term()) -> acl_v1().
+-spec acl_from_json(term()) -> acl().
 acl_from_json({struct, Json}) ->
     process_acl_contents(Json, ?ACL{});
 acl_from_json(Json) ->
@@ -46,16 +46,16 @@ acl_from_json(Json) ->
 
 %% @doc Convert an internal representation of an ACL into
 %% erlang terms that can be encoded using `mochijson2:encode'.
--spec acl_to_json_term(acl_v1()) -> term().
-acl_to_json_term(#acl_v1{owner={DisplayName, CanonicalId},
-                         grants=Grants,
-                         creation_time=CreationTime}) ->
-    {struct, [{<<"acl">>,
-               {struct, [{<<"version">>, 1},
-                         owner_to_json_term(DisplayName, CanonicalId),
-                         grants_to_json_term(Grants, []),
-                         erlang_time_to_json_term(CreationTime)]}
-              }]}.
+-spec acl_to_json_term(acl()) -> term().
+acl_to_json_term(?ACL{owner={DisplayName, CanonicalId},
+                      grants=Grants,
+                      creation_time=CreationTime}) ->
+    {<<"acl">>,
+     {struct, [{<<"version">>, 1},
+               owner_to_json_term(DisplayName, CanonicalId),
+               grants_to_json_term(Grants, []),
+               erlang_time_to_json_term(CreationTime)]}
+    }.
 
 %% ===================================================================
 %% Internal functions
@@ -108,7 +108,7 @@ permissions_to_json_term(Perms) ->
     [list_to_binary(atom_to_list(Perm)) || Perm <- Perms].
 
 %% @doc Process the top-level elements of the
--spec process_acl_contents([term()], acl_v1()) -> acl_v1().
+-spec process_acl_contents([term()], acl()) -> acl().
 process_acl_contents([], Acl) ->
     Acl;
 process_acl_contents([{Name, Value} | RestObjects], Acl) ->
@@ -129,7 +129,7 @@ process_acl_contents([{Name, Value} | RestObjects], Acl) ->
     process_acl_contents(RestObjects, UpdAcl).
 
 %% @doc Process an JSON element containing acl owner information.
--spec process_owner([term()], acl_v1()) -> acl_v1().
+-spec process_owner([term()], acl()) -> acl().
 process_owner([], Acl) ->
     Acl;
 process_owner([{Name, Value} | RestObjects], Acl) ->
@@ -150,7 +150,7 @@ process_owner([{Name, Value} | RestObjects], Acl) ->
     process_owner(RestObjects, Acl?ACL{owner=UpdOwner}).
 
 %% @doc Process an JSON element containing the grants for the acl.
--spec process_grants([term()], acl_v1()) -> acl_v1().
+-spec process_grants([term()], acl()) -> acl().
 process_grants([], Acl) ->
     Acl;
 process_grants([{_, Value} | RestObjects], Acl) ->
@@ -284,28 +284,27 @@ acl_to_json_term_test() ->
               CreationTime),
     JsonTerm = acl_to_json_term(Acl),
     {AclMegaSecs, AclSecs, AclMicroSecs} = CreationTime,
-    ExpectedTerm = {struct,
-                    [{<<"acl">>,
-                      {struct,
-                       [{<<"version">>,1},
-                        {<<"owner">>,
-                         {struct,
-                          [{<<"display_name">>,<<"tester1">>},
-                           {<<"canonical_id">>,<<"TESTID1">>}]}},
-                        {<<"grants">>,
-                         [{struct,
-                           [{<<"display_name">>,<<"tester2">>},
-                            {<<"canonical_id">>,<<"TESTID2">>},
-                            {<<"permissions">>,[<<"WRITE">>]}]},
-                          {struct,
-                           [{<<"display_name">>,<<"tester1">>},
-                            {<<"canonical_id">>,<<"TESTID1">>},
-                            {<<"permissions">>,[<<"READ">>]}]}]},
-                        {<<"creation_time">>,
-                         {struct,
-                          [{<<"mega_seconds">>, AclMegaSecs},
-                           {<<"seconds">>, AclSecs},
-                           {<<"micro_seconds">>, AclMicroSecs}]}}]}}]},
+    ExpectedTerm = {<<"acl">>,
+                    {struct,
+                     [{<<"version">>,1},
+                      {<<"owner">>,
+                       {struct,
+                        [{<<"display_name">>,<<"tester1">>},
+                         {<<"canonical_id">>,<<"TESTID1">>}]}},
+                      {<<"grants">>,
+                       [{struct,
+                         [{<<"display_name">>,<<"tester2">>},
+                          {<<"canonical_id">>,<<"TESTID2">>},
+                          {<<"permissions">>,[<<"WRITE">>]}]},
+                        {struct,
+                         [{<<"display_name">>,<<"tester1">>},
+                          {<<"canonical_id">>,<<"TESTID1">>},
+                          {<<"permissions">>,[<<"READ">>]}]}]},
+                      {<<"creation_time">>,
+                       {struct,
+                        [{<<"mega_seconds">>, AclMegaSecs},
+                         {<<"seconds">>, AclSecs},
+                         {<<"micro_seconds">>, AclMicroSecs}]}}]}},
     ?assertEqual(ExpectedTerm, JsonTerm).
 
 owner_to_json_term_test() ->

@@ -34,10 +34,10 @@
 -include("stanchion.hrl").
 -include_lib("riakc/include/riakc_obj.hrl").
 
--define(OBJECT_BUCKET_PREFIX, <<"objects:">>).
--define(BLOCK_BUCKET_PREFIX, <<"blocks:">>).
 -define(EMAIL_INDEX, <<"email_bin">>).
 -define(ID_INDEX, <<"c_id_bin">>).
+-define(OBJECT_BUCKET_PREFIX, <<"0o:">>).       % Version # = 0
+-define(BLOCK_BUCKET_PREFIX, <<"0b:">>).        % Version # = 0
 
 %% ===================================================================
 %% Public API
@@ -224,7 +224,7 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
--spec put_bucket(term(), binary(), acl_v1(), pid()) -> ok | {error, term()}.
+-spec put_bucket(term(), binary(), acl(), pid()) -> ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, Acl, RiakPid) ->
     MetaData  = dict:from_list(
                   [{?MD_USERMETA, [{?MD_ACL, term_to_binary(Acl)}]}]),
@@ -294,10 +294,26 @@ to_bucket_name(blocks, Name) ->
 %% @doc Check if a bucket is empty
 -spec bucket_empty(binary(), pid()) -> boolean().
 bucket_empty(Bucket, RiakPid) ->
-    ObjBucket = to_bucket_name(objects, Bucket),
-    case list_keys(ObjBucket, RiakPid) of
-        {ok, []} ->
-            true;
+    ManifestBucket = to_bucket_name(objects, Bucket),
+    case list_keys(ManifestBucket, RiakPid) of
+        {ok, Keys} ->
+            FoldFun =
+                fun(Key, Acc) ->
+                        {ok, ManiPid} = stanchion_manifest_fsm:start_link(Bucket, Key),
+                        case stanchion_manifest_fsm:get_active_manifest(ManiPid) of
+                            {ok, _} ->
+                                [Key | Acc];
+                            {error, notfound} ->
+                                Acc
+                        end
+                end,
+            ActiveKeys = lists:foldl(FoldFun, [], Keys),
+            case ActiveKeys of
+                [] ->
+                    true;
+                _ ->
+                    false
+            end;
         _ ->
             false
     end.
@@ -351,7 +367,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), binary(), acl_v1(), atom()) -> ok | {error, term()}.
+-spec do_bucket_op(binary(), binary(), acl(), atom()) -> ok | {error, term()}.
 do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
     case riak_connection() of
         {ok, RiakPid} ->
