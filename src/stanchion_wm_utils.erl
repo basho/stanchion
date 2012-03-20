@@ -43,13 +43,17 @@ iso_8601_datetime() ->
 
 %% @doc Convert a list of mochijson2-decoded JSON objects
 %% into a standard propllist.
--spec json_to_proplist([{struct, [{term(), term()}]}]) -> [{term(), term()}].
-json_to_proplist(JsonObjects) ->
+-type json_term() :: {struct, [{term(), term()}]}.
+-type json_terms() :: [{struct, [{term(), term()}]}].
+-spec json_to_proplist(json_term() | json_terms()) -> [{term(), term()}].
+json_to_proplist({struct, JsonObject}) ->
+    JsonObject;
+json_to_proplist([{struct, JsonObjects}]) ->
     json_to_proplist(JsonObjects, []).
 
 %% @doc Convert a list of mochijson2-decoded JSON objects
 %% into a standard propllist.
--spec json_to_proplist([{struct, [{term(), term()}]}], [{term(), term()}]) -> [{term(), term()}].
+-spec json_to_proplist({struct, [{term(), term()}]}, [{term(), term()}]) -> [{term(), term()}].
 json_to_proplist([], Acc) ->
     lists:flatten(Acc);
 json_to_proplist([{struct, [ObjContents]} | RestObjs], Acc) ->

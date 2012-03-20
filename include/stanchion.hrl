@@ -17,7 +17,7 @@
           last_action :: created | deleted,
           creation_date :: string(),
           modification_time :: erlang:timestamp(),
-          acl :: acl_v1()}).
+          acl :: acl()}).
 -type moss_bucket() :: #moss_bucket_v1{}.
 
 -type acl_perm() :: 'READ' | 'WRITE' | 'READ_ACP' | 'WRITE_ACP' | 'FULL_CONTROL'.
@@ -26,7 +26,7 @@
 -record(acl_v1, {owner={"", ""} :: {string(), string()},
                  grants=[] :: [acl_grant()],
                  creation_time=now() :: erlang:timestamp()}).
--type acl_v1() :: #acl_v1{}.
+-type acl() :: #acl_v1{}.
 
 -define(ACL, #acl_v1).
 -define(USER_BUCKET, <<"moss.users">>).
