@@ -18,7 +18,7 @@
 -endif.
 
 %% Public API
--export([acl/4,
+-export([acl/5,
          acl_from_json/1,
          acl_to_json_term/1
         ]).
@@ -29,9 +29,9 @@
 
 %% @doc Construct an acl. The structure is the same for buckets
 %% and objects.
--spec acl(string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
-acl(DisplayName, CanonicalId, Grants, CreationTime) ->
-    OwnerData = {DisplayName, CanonicalId},
+-spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
+acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
+    OwnerData = {DisplayName, CanonicalId, KeyId},
     ?ACL{owner=OwnerData,
          grants=Grants,
          creation_time=CreationTime}.
@@ -47,12 +47,12 @@ acl_from_json(Json) ->
 %% @doc Convert an internal representation of an ACL into
 %% erlang terms that can be encoded using `mochijson2:encode'.
 -spec acl_to_json_term(acl()) -> term().
-acl_to_json_term(?ACL{owner={DisplayName, CanonicalId},
+acl_to_json_term(?ACL{owner={DisplayName, CanonicalId, KeyId},
                       grants=Grants,
                       creation_time=CreationTime}) ->
     {<<"acl">>,
      {struct, [{<<"version">>, 1},
-               owner_to_json_term(DisplayName, CanonicalId),
+               owner_to_json_term(DisplayName, CanonicalId, KeyId),
                grants_to_json_term(Grants, []),
                erlang_time_to_json_term(CreationTime)]}
     }.
@@ -94,11 +94,12 @@ grants_to_json_term([HeadGrant | RestGrants], GrantTerms) ->
 
 %% @doc Convert owner information from an ACL into erlang
 %% terms that can be encoded using `mochijson2:encode'.
--spec owner_to_json_term(string(), string()) -> term().
-owner_to_json_term(DisplayName, CanonicalId) ->
+-spec owner_to_json_term(string(), string(), string()) -> term().
+owner_to_json_term(DisplayName, CanonicalId, KeyId) ->
     {<<"owner">>,
      {struct, [{<<"display_name">>, list_to_binary(DisplayName)},
-               {<<"canonical_id">>, list_to_binary(CanonicalId)}]}
+               {<<"canonical_id">>, list_to_binary(CanonicalId)},
+               {<<"key_id">>, list_to_binary(KeyId)}]}
     }.
 
 %% @doc Convert a list of permissions into binaries
@@ -135,14 +136,18 @@ process_owner([], Acl) ->
 process_owner([{Name, Value} | RestObjects], Acl) ->
     Owner = Acl?ACL.owner,
     case Name of
+        <<"key_id">> ->
+            lager:debug("Owner Key ID value: ~p", [Value]),
+            {OwnerName, OwnerCID, _} = Owner,
+            UpdOwner = {OwnerName, OwnerCID, binary_to_list(Value)};
         <<"canonical_id">> ->
             lager:debug("Owner ID value: ~p", [Value]),
-            {OwnerName, _} = Owner,
-            UpdOwner = {OwnerName, binary_to_list(Value)};
+            {OwnerName, _, OwnerId} = Owner,
+            UpdOwner = {OwnerName, binary_to_list(Value), OwnerId};
         <<"display_name">> ->
             lager:debug("Owner Name content: ~p", [Value]),
-            {_, OwnerId} = Owner,
-            UpdOwner = {binary_to_list(Value), OwnerId};
+            {_, OwnerCID, OwnerId} = Owner,
+            UpdOwner = {binary_to_list(Value), OwnerCID, OwnerId};
         _ ->
             lager:debug("Encountered unexpected element: ~p", [Name]),
             UpdOwner = Owner
@@ -248,7 +253,8 @@ acl_from_json_test() ->
                 {<<"owner">>,
                  {struct,
                   [{<<"display_name">>,<<"tester1">>},
-                   {<<"canonical_id">>,<<"TESTID1">>}]}},
+                   {<<"canonical_id">>,<<"TESTID1">>},
+                   {<<"key_id">>,<<"TESTKEYID1">>}]}},
                 {<<"grants">>,
                  [{struct,
                    [{<<"group">>,<<"AllUsers">>},
@@ -269,6 +275,7 @@ acl_from_json_test() ->
     Acl = acl_from_json(JsonTerm),
     ExpectedAcl = acl("tester1",
                       "TESTID1",
+                      "TESTKEYID1",
                       [{{"tester1", "TESTID1"}, ['READ']},
                        {{"tester2", "TESTID2"}, ['WRITE']},
                        {'AllUsers', ['WRITE_ACP']}],
@@ -279,6 +286,7 @@ acl_to_json_term_test() ->
     CreationTime = erlang:now(),
     Acl = acl("tester1",
               "TESTID1",
+              "TESTKEYID1",
               [{{"tester1", "TESTID1"}, ['READ']},
                {{"tester2", "TESTID2"}, ['WRITE']}],
               CreationTime),
@@ -290,7 +298,8 @@ acl_to_json_term_test() ->
                       {<<"owner">>,
                        {struct,
                         [{<<"display_name">>,<<"tester1">>},
-                         {<<"canonical_id">>,<<"TESTID1">>}]}},
+                         {<<"canonical_id">>,<<"TESTID1">>},
+                         {<<"key_id">>,<<"TESTKEYID1">>}]}},
                       {<<"grants">>,
                        [{struct,
                          [{<<"display_name">>,<<"tester2">>},
@@ -308,10 +317,11 @@ acl_to_json_term_test() ->
     ?assertEqual(ExpectedTerm, JsonTerm).
 
 owner_to_json_term_test() ->
-    JsonTerm = owner_to_json_term("name", "id123"),
+    JsonTerm = owner_to_json_term("name", "cid123", "keyid123"),
     ExpectedTerm = {<<"owner">>,
                     {struct, [{<<"display_name">>, <<"name">>},
-                              {<<"canonical_id">>, <<"id123">>}]}
+                              {<<"canonical_id">>, <<"cid123">>},
+                              {<<"key_id">>, <<"keyid123">>}]}
                    },
     ?assertEqual(ExpectedTerm, JsonTerm).
 
@@ -319,6 +329,7 @@ grants_to_json_term_test() ->
     CreationTime = erlang:now(),
     Acl = acl("tester1",
               "TESTID1",
+              "TESTKEYID1",
               [{{"tester1", "TESTID1"}, ['READ']},
                {{"tester2", "TESTID2"}, ['WRITE']}],
               CreationTime),
