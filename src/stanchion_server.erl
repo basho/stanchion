@@ -55,7 +55,10 @@ create_bucket(BucketData) ->
     gen_server:call(?MODULE, {create_bucket, BucketData}).
 
 %% @doc Attempt to create a bucket
--spec create_user([{term(), term()}]) -> ok | {error, term()}.
+-spec create_user([{term(), term()}]) ->
+                         ok |
+                         {error, term()} |
+                         {error, stanchion_utils:riak_connect_failed()}.
 create_user(UserData) ->
     gen_server:call(?MODULE, {create_user, UserData}).
 

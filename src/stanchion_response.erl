@@ -55,7 +55,7 @@ status_code({riak_connect_failed, _}) -> 503.
 respond(StatusCode, Body, ReqData, Ctx) ->
     {{halt, StatusCode}, wrq:set_resp_body(Body, ReqData), Ctx}.
 
-api_error(Error, ReqData, Ctx) when is_atom(Error) ->
+api_error(Error, ReqData, Ctx) ->
     error_response(status_code(Error), error_code(Error), error_message(Error),
                    ReqData, Ctx).
 
@@ -99,8 +99,8 @@ list_bucket_response(User, _Bucket, KeyObjPairs, RD, Ctx) ->
                                     undefined
                             end;
                         {error, Reason} ->
-                            lager:warning("Unable to fetch object for ~p. Reason: ~p",
-                                          [Key, Reason]),
+                            _ = lager:warning("Unable to fetch object for ~p. Reason: ~p",
+                                              [Key, Reason]),
                             undefined
                     end
                 end

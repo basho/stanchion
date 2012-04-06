@@ -75,7 +75,7 @@ create_bucket(BucketFields) ->
     do_bucket_op(Bucket, OwnerId, Acl, create).
 
 %% @doc Attmpt to create a new user
--spec create_user([{term(), term()}]) -> ok | {error, term()}.
+-spec create_user([{term(), term()}]) -> ok | {error, riak_connect_failed() | term()}.
 create_user(UserFields) ->
     %% @TODO Check for missing fields
     UserName = binary_to_list(proplists:get_value(<<"name">>, UserFields, <<>>)),
