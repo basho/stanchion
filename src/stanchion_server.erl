@@ -72,7 +72,7 @@ stop(Pid) ->
 %% ===================================================================
 
 %% @doc Initialize the server.
--spec init([] | {test, [atom()]}) -> {ok, state()} | {stop, term()}.
+-spec init([] | test) -> {ok, state()}.
 init([]) ->
     {ok, #state{}};
 init(test) ->
@@ -109,7 +109,7 @@ handle_cast(list_buckets, State) ->
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Event, State) ->
-    lager:warning("Received unknown cast event: ~p", [Event]),
+    _ = lager:warning("Received unknown cast event: ~p", [Event]),
     {noreply, State}.
 
 %% @doc @TODO
