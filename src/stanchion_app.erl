@@ -30,7 +30,7 @@ start(_Type, _StartArgs) ->
         {ok, _} ->
             stanchion_sup:start_link();
         {error, Reason} ->
-            lager:error("Couldn't connect to Riak: ~p", [Reason]),
+            _ = lager:error("Couldn't connect to Riak: ~p", [Reason]),
             {error, Reason}
     end.
 

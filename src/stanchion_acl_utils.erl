@@ -113,7 +113,7 @@ permissions_to_json_term(Perms) ->
 process_acl_contents([], Acl) ->
     Acl;
 process_acl_contents([{Name, Value} | RestObjects], Acl) ->
-    lager:debug("Object name: ~p", [Name]),
+    _ = lager:debug("Object name: ~p", [Name]),
     case Name of
         <<"owner">> ->
             {struct, OwnerData} = Value,
@@ -137,19 +137,19 @@ process_owner([{Name, Value} | RestObjects], Acl) ->
     Owner = Acl?ACL.owner,
     case Name of
         <<"key_id">> ->
-            lager:debug("Owner Key ID value: ~p", [Value]),
+            _ = lager:debug("Owner Key ID value: ~p", [Value]),
             {OwnerName, OwnerCID, _} = Owner,
             UpdOwner = {OwnerName, OwnerCID, binary_to_list(Value)};
         <<"canonical_id">> ->
-            lager:debug("Owner ID value: ~p", [Value]),
+            _ = lager:debug("Owner ID value: ~p", [Value]),
             {OwnerName, _, OwnerId} = Owner,
             UpdOwner = {OwnerName, binary_to_list(Value), OwnerId};
         <<"display_name">> ->
-            lager:debug("Owner Name content: ~p", [Value]),
+            _ = lager:debug("Owner Name content: ~p", [Value]),
             {_, OwnerCID, OwnerId} = Owner,
             UpdOwner = {binary_to_list(Value), OwnerCID, OwnerId};
         _ ->
-            lager:debug("Encountered unexpected element: ~p", [Name]),
+            _ = lager:debug("Encountered unexpected element: ~p", [Name]),
             UpdOwner = Owner
     end,
     process_owner(RestObjects, Acl?ACL{owner=UpdOwner}).
@@ -171,22 +171,22 @@ process_grant([], Grant) ->
 process_grant([{Name, Value} | RestObjects], Grant) ->
     case Name of
         <<"canonical_id">> ->
-            lager:debug("ID value: ~p", [Value]),
+            _ = ager:debug("ID value: ~p", [Value]),
             {{DispName, _}, Perms} = Grant,
             UpdGrant = {{DispName, binary_to_list(Value)}, Perms};
         <<"display_name">> ->
-            lager:debug("Name value: ~p", [Value]),
+            _ = lager:debug("Name value: ~p", [Value]),
             {{_, Id}, Perms} = Grant,
             UpdGrant = {{binary_to_list(Value), Id}, Perms};
         <<"group">> ->
-            lager:debug("Group value: ~p", [Value]),
+            _ = lager:debug("Group value: ~p", [Value]),
             {_, Perms} = Grant,
             UpdGrant = {list_to_atom(
                           binary_to_list(Value)), Perms};
         <<"permissions">> ->
             {Grantee, _} = Grant,
             Perms = process_permissions(Value),
-            lager:debug("Perms value: ~p", [Value]),
+            _ = lager:debug("Perms value: ~p", [Value]),
             UpdGrant = {Grantee, Perms};
         _ ->
             UpdGrant = Grant
