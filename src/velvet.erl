@@ -35,8 +35,8 @@
                     [{atom(), term()}]) -> ok | {error, term()}.
 create_bucket(Ip, Port, ContentType, BucketDoc, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
-    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
-    Path = buckets_path([]),
+    AuthCreds = proplists:get_value(auth_creds, Options, no_auth_creds),
+    Path = buckets_path(<<>>),
     Url = url(Ip, Port, Ssl, Path),
     Headers0 = [{"Content-Md5", content_md5(BucketDoc)},
                 {"Date", httpd_util:rfc1123_date()}],
@@ -49,7 +49,7 @@ create_bucket(Ip, Port, ContentType, BucketDoc, Options) ->
                                                Path,
                                                AuthCreds)} |
                  Headers0];
-        undefined ->
+        no_auth_creds ->
             Headers = Headers0
     end,
     case request(post, Url, [201], ContentType, Headers, BucketDoc) of
@@ -69,7 +69,7 @@ create_bucket(Ip, Port, ContentType, BucketDoc, Options) ->
                   [{atom(), term()}]) -> ok | {error, term()}.
 create_user(Ip, Port, ContentType, UserDoc, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
-    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    AuthCreds = proplists:get_value(auth_creds, Options, no_auth_creds),
     Path = users_path([]),
     Url = url(Ip, Port, Ssl, Path),
     Headers0 = [{"Content-Md5", content_md5(UserDoc)},
@@ -83,7 +83,7 @@ create_user(Ip, Port, ContentType, UserDoc, Options) ->
                                                Path,
                                                AuthCreds)} |
                  Headers0];
-        undefined ->
+        no_auth_creds ->
             Headers = Headers0
     end,
     case request(post, Url, [201], ContentType, Headers, UserDoc) of
@@ -104,10 +104,10 @@ create_user(Ip, Port, ContentType, UserDoc, Options) ->
                     [{atom(), term()}]) -> ok | {error, term()}.
 delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
-    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    AuthCreds = proplists:get_value(auth_creds, Options, no_auth_creds),
     QS = requester_qs(Requester),
     Path = buckets_path(Bucket),
-    Url = url(Ip, Port, Ssl, Path ++ QS),
+    Url = url(Ip, Port, Ssl, stringy(Path ++ QS)),
     Headers0 = [{"Date", httpd_util:rfc1123_date()}],
     case AuthCreds of
         {_, _} ->
@@ -118,7 +118,7 @@ delete_bucket(Ip, Port, Bucket, Requester, Options) ->
                                                Path,
                                                AuthCreds)} |
                  Headers0];
-        undefined ->
+        no_auth_creds ->
             Headers = Headers0
     end,
     case request(delete, Url, [204], Headers) of
@@ -131,12 +131,12 @@ delete_bucket(Ip, Port, Bucket, Requester, Options) ->
     end.
 
 %% @doc List all the buckets that currently have owners.
--spec list_buckets(string(), pos_integer(), boolean()) -> {ok, [{binary(), binary()}]} | {error, term()}.
+-spec list_buckets(string(), pos_integer(), boolean()) -> {ok, [{binary(), binary()}]}. %% | {error, term()}.
 list_buckets(_Ip, _Port, _Ssl) ->
     {ok, []}.
 
 %% @doc List all the buckets owned by a particular user.
--spec list_buckets(string(), pos_integer(), boolean(), binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
+-spec list_buckets(string(), pos_integer(), boolean(), binary()) -> {ok, [{binary(), binary()}]}. %% | {error, term()}.
 list_buckets(_Ip, _Port, _Ssl, _UserId) ->
     {ok, []}.
 
@@ -160,7 +160,7 @@ ping(Ip, Port, Ssl) ->
                      [{atom(), term()}]) -> ok | {error, term()}.
 set_bucket_acl(Ip, Port, Bucket, ContentType, AclDoc, Options) ->
     Ssl = proplists:get_value(ssl, Options, true),
-    AuthCreds = proplists:get_value(auth_creds, Options, undefined),
+    AuthCreds = proplists:get_value(auth_creds, Options, no_auth_creds),
     Path = buckets_path(Bucket, true),
     Url = url(Ip, Port, Ssl, Path),
     Headers0 = [{"Content-Md5", content_md5(AclDoc)},
@@ -174,7 +174,7 @@ set_bucket_acl(Ip, Port, Bucket, ContentType, AclDoc, Options) ->
                                                Path,
                                                AuthCreds)} |
                  Headers0];
-        undefined ->
+        no_auth_creds ->
             Headers = Headers0
     end,
     case request(put, Url, [204], ContentType, Headers, AclDoc) of
@@ -208,17 +208,17 @@ stats_url(Ip, Port, Ssl) ->
     lists:flatten([root_url(Ip, Port, Ssl), "stats/"]).
 
 %% @doc Assemble the path for a bucket request
--spec buckets_path(binary()) -> [string()].
+-spec buckets_path(binary()) -> string().
 buckets_path(Bucket) ->
     buckets_path(Bucket, false).
 
 %% @doc Assemble the path for a bucket request
--spec buckets_path(binary(), boolean()) -> [string()].
+-spec buckets_path(binary(), boolean()) -> string().
 buckets_path(Bucket, AclRequest) ->
-    ["/buckets",
-     ["/" ++ binary_to_list(Bucket) || Bucket /= []],
-     ["/acl" || AclRequest == true]
-    ].
+    stringy(["/buckets",
+             ["/" ++ binary_to_list(Bucket) || Bucket /= <<>>],
+             ["/acl" || AclRequest == true]
+            ]).
 
 %% @doc Assemble the URL for a buckets request
 -spec url(string(), pos_integer(), boolean(), [string()]) ->
@@ -244,14 +244,14 @@ list_buckets_url(Ip, Port, Ssl, Owner) ->
 %% @doc send an HTTP request where `Expect' is a list
 %% of expected HTTP status codes.
 -spec request(atom(), string(), [pos_integer()]) ->
-                     {ok, term(), term(), term()} | {error, term()}.
+                     {ok, {term(), term(), term()}} | {error, term()}.
 request(Method, Url, Expect) ->
     request(Method, Url, Expect, [], [], []).
 
 %% @doc send an HTTP request  where `Expect' is a list
 %% of expected HTTP status codes.
 -spec request(atom(), string(), [pos_integer()], [{string(), string()}]) ->
-                     {ok, term(), term(), term()} | {error, term()}.
+                     {ok, {term(), term(), term()}} | {error, term()}.
 request(Method, Url, Expect, Headers) ->
     request(Method, Url, Expect, [], Headers, []).
 
@@ -262,7 +262,7 @@ request(Method, Url, Expect, Headers) ->
               [pos_integer()],
               string(),
               [{string(), string()}],
-              string()) -> {ok, term(), term(), term()} | {error, term()}.
+              string()) -> {ok, {term(), term(), term()}} | {error, term()}.
 request(Method, Url, Expect, ContentType, Headers, Body) ->
     case Method == put orelse
         Method == post of
@@ -290,9 +290,9 @@ content_md5(Body) ->
 %% @doc Construct a MOSS authentication header
 -spec auth_header(atom(),
                   string(),
-                  [{string(), string()}],
+                  [{string() | atom() | binary(), string()}],
                   string(),
-                  {string(), string()}) -> string().
+                  {string(), iodata()}) -> nonempty_string().
 auth_header(HttpVerb, ContentType, Headers, Path, {AuthKey, AuthSecret}) ->
     Signature = stanchion_auth:request_signature(HttpVerb,
                                                       [{"content-type", ContentType} |
@@ -311,6 +311,10 @@ requester_qs(Requester) ->
 %% @doc Assemble the path for a users request
 -spec users_path(string()) -> [string()].
 users_path(User) ->
-    ["/users",
-     ["/" ++ User || User /= []]
-    ].
+    stringy(["/users",
+             ["/" ++ User || User /= []]
+            ]).
+
+-spec stringy(string() | list(string())) -> string().
+stringy(List) ->
+    lists:flatten(List).
