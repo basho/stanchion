@@ -28,10 +28,11 @@ parse_auth_header("MOSS " ++ Key, _) ->
     case string:tokens(Key, ":") of
         [KeyId, KeyData] ->
             {ok, stanchion_auth, [KeyId, KeyData]};
-        Other -> Other
+        _Other ->
+            {error, {bad_key, Key}}
     end;
 parse_auth_header(_, false) ->
-    {ok, stanchion_blockall_auth, [unkown_auth_scheme]}.
+    {ok, stanchion_blockall_auth, ["unkown_auth_scheme"]}.
 
 %% @doc Get an ISO 8601 formatted timestamp representing
 %% current time.
@@ -53,7 +54,7 @@ json_to_proplist([{struct, JsonObjects}]) ->
 
 %% @doc Convert a list of mochijson2-decoded JSON objects
 %% into a standard propllist.
--spec json_to_proplist({struct, [{term(), term()}]}, [{term(), term()}]) -> [{term(), term()}].
+-spec json_to_proplist([{'struct',[any(),...]}],[any()]) -> [any()].
 json_to_proplist([], Acc) ->
     lists:flatten(Acc);
 json_to_proplist([{struct, [ObjContents]} | RestObjs], Acc) ->
