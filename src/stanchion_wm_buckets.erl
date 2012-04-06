@@ -58,7 +58,7 @@ content_types_provided(RD, Ctx) ->
     %% @TODO Add JSON support
     {[{"application/xml", to_xml}], RD, Ctx}.
 
--spec post_is_create(term(), term()) -> true.
+-spec post_is_create(term(), term()) -> {true, term(), term()}.
 post_is_create(_RD, _Ctx) ->
     {true, _RD, _Ctx}.
 
@@ -94,8 +94,8 @@ accept_body(RD, Ctx) ->
             stanchion_response:api_error(Reason, RD, Ctx)
     end.
 
--spec to_xml(term(), term()) ->
-                    {iolist(), term(), term()}.
+-spec to_xml(#wm_reqdata{}, term()) ->
+                    {tuple(), #wm_reqdata{}, term()}.
 to_xml(RD, Ctx) ->
     OwnerId = list_to_binary(wrq:get_qs_value("owner", "", RD)),
     case stanchion_utils:get_buckets(OwnerId) of

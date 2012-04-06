@@ -50,7 +50,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Attempt to create a bucket
--spec create_bucket(binary()) -> ok | {error, term()}.
+-spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
 create_bucket(BucketData) ->
     gen_server:call(?MODULE, {create_bucket, BucketData}).
 
