@@ -171,7 +171,7 @@ process_grant([], Grant) ->
 process_grant([{Name, Value} | RestObjects], Grant) ->
     case Name of
         <<"canonical_id">> ->
-            _ = ager:debug("ID value: ~p", [Value]),
+            _ = lager:debug("ID value: ~p", [Value]),
             {{DispName, _}, Perms} = Grant,
             UpdGrant = {{DispName, binary_to_list(Value)}, Perms};
         <<"display_name">> ->
