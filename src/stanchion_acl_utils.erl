@@ -29,7 +29,7 @@
 
 %% @doc Construct an acl. The structure is the same for buckets
 %% and objects.
--spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
+-spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl2().
 acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
     OwnerData = {DisplayName, CanonicalId, KeyId},
     ?ACL{owner=OwnerData,
@@ -38,7 +38,7 @@ acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
 
 %% @doc Convert a set of JSON terms representing an ACL into
 %% an internal representation.
--spec acl_from_json(term()) -> acl().
+-spec acl_from_json(term()) -> acl2().
 acl_from_json({struct, Json}) ->
     process_acl_contents(Json, ?ACL{});
 acl_from_json(Json) ->
@@ -109,7 +109,7 @@ permissions_to_json_term(Perms) ->
     [list_to_binary(atom_to_list(Perm)) || Perm <- Perms].
 
 %% @doc Process the top-level elements of the
--spec process_acl_contents([term()], acl()) -> acl().
+-spec process_acl_contents([term()], acl()) -> acl2().
 process_acl_contents([], Acl) ->
     Acl;
 process_acl_contents([{Name, Value} | RestObjects], Acl) ->
@@ -130,7 +130,7 @@ process_acl_contents([{Name, Value} | RestObjects], Acl) ->
     process_acl_contents(RestObjects, UpdAcl).
 
 %% @doc Process an JSON element containing acl owner information.
--spec process_owner([term()], acl()) -> acl().
+-spec process_owner([term()], acl()) -> acl2().
 process_owner([], Acl) ->
     Acl;
 process_owner([{Name, Value} | RestObjects], Acl) ->
@@ -155,7 +155,7 @@ process_owner([{Name, Value} | RestObjects], Acl) ->
     process_owner(RestObjects, Acl?ACL{owner=UpdOwner}).
 
 %% @doc Process an JSON element containing the grants for the acl.
--spec process_grants([term()], acl()) -> acl().
+-spec process_grants([term()], acl()) -> acl2().
 process_grants([], Acl) ->
     Acl;
 process_grants([{_, Value} | RestObjects], Acl) ->

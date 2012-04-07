@@ -22,7 +22,7 @@
 
 -type acl_perm() :: 'READ' | 'WRITE' | 'READ_ACP' | 'WRITE_ACP' | 'FULL_CONTROL'.
 -type acl_perms() :: [acl_perm()].
--type acl_grant() :: {{string(), string()}, acl_perms()}.
+-type acl_grant() :: {{string(), string()}, acl_perms()} | {atom(), acl_perms()}.
 -type acl_owner() :: {string(), string()} | {string(), string(), string()}.
 -record(acl_v1, {owner={"", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
@@ -30,7 +30,9 @@
 -record(acl_v2, {owner={"", "", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
                  creation_time=now() :: erlang:timestamp()}).
--type acl() :: #acl_v1{} | #acl_v2{}.
+-type acl1() :: #acl_v1{}.
+-type acl2() :: #acl_v2{}.
+-type acl() :: acl1() | acl2().
 
 -define(ACL, #acl_v2).
 -define(USER_BUCKET, <<"moss.users">>).
