@@ -9,7 +9,6 @@
 -export([api_error/3,
          respond/4,
          error_response/5,
-         list_bucket_response/5,
          list_buckets_response/3]).
 -define(xml_prolog, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>").
 -include("stanchion.hrl").
@@ -74,40 +73,6 @@ list_buckets_response(BucketData, RD, Ctx) ->
                   || {Bucket, Owner} <- BucketData],
     Contents = [{'Buckets', BucketsDoc}],
     XmlDoc = [{'ListBucketsResult',  Contents}],
-    respond(200, export_xml(XmlDoc), RD, Ctx).
-
-list_bucket_response(User, _Bucket, KeyObjPairs, RD, Ctx) ->
-    Contents = [begin
-                    KeyString = binary_to_list(Key),
-                    LastModified = stanchion_wm_utils:iso_8601_datetime(),
-                    case ObjResp of
-                        {ok, Obj} ->
-                            Manifest = binary_to_term(riakc_obj:get_value(Obj)),
-                            case stanchion_lfs_utils:is_active(Manifest) of
-                                true ->
-                                    Size = integer_to_list(
-                                             stanchion_lfs_utils:content_length(Manifest)),
-                                    ETag = "\"" ++ stanchion_utils:binary_to_hexlist(
-                                                     stanchion_lfs_utils:content_md5(Manifest))
-                                        ++ "\"",
-                                    {'Contents', [{'Key', [KeyString]},
-                                                  {'Size', [Size]},
-                                                  {'LastModified', [LastModified]},
-                                                  {'ETag', [ETag]},
-                                                  {'Owner', [User]}]};
-                                false ->
-                                    undefined
-                            end;
-                        {error, Reason} ->
-                            _ = lager:warning("Unable to fetch object for ~p. Reason: ~p",
-                                              [Key, Reason]),
-                            undefined
-                    end
-                end
-                || {Key, ObjResp} <- KeyObjPairs],
-    XmlDoc = [{'ListBucketResult',
-                   lists:filter(fun(E) -> E /= undefined end,
-                                Contents)}],
     respond(200, export_xml(XmlDoc), RD, Ctx).
 
 export_xml(XmlDoc) ->

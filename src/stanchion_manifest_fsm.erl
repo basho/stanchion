@@ -343,7 +343,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec get_manifests(pid(), binary(), binary()) ->
     {ok, term(), term()} | {error, notfound}.
 get_manifests(RiakcPid, Bucket, Key) ->
-    ManifestBucket = stanchion:to_bucket_name(objects, Bucket),
+    ManifestBucket = stanchion_utils:to_bucket_name(objects, Bucket),
     case riakc_pb_socket:get(RiakcPid, ManifestBucket, Key) of
         {ok, Object} ->
             Siblings = riakc_obj:get_values(Object),

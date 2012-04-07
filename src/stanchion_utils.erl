@@ -169,7 +169,7 @@ get_buckets(OwnerId) ->
 
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary()) ->
-                        {ok, riakc_pb_object:riakc_obj()} | {error, term()}.
+                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key) ->
     case riak_connection() of
         {ok, RiakPid} ->
@@ -182,7 +182,7 @@ get_object(BucketName, Key) ->
 
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary(), pid()) ->
-                        {ok, riakc_pb_object:riakc_obj()} | {error, term()}.
+                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key, RiakPid) ->
     riakc_pb_socket:get(RiakPid, BucketName, Key).
 
