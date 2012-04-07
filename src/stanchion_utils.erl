@@ -80,7 +80,7 @@ create_user(UserFields) ->
     %% @TODO Check for missing fields
     UserName = binary_to_list(proplists:get_value(<<"name">>, UserFields, <<>>)),
     DisplayName = binary_to_list(proplists:get_value(<<"display_name">>, UserFields, <<>>)),
-    Email= binary_to_list(proplists:get_value(<<"email">>, UserFields, <<>>)),
+    Email = proplists:get_value(<<"email">>, UserFields, <<>>),
     KeyId = binary_to_list(proplists:get_value(<<"key_id">>, UserFields, <<>>)),
     KeySecret = binary_to_list(proplists:get_value(<<"key_secret">>, UserFields, <<>>)),
     CanonicalId = binary_to_list(proplists:get_value(<<"canonical_id">>, UserFields, <<>>)),
@@ -90,7 +90,7 @@ create_user(UserFields) ->
                 true ->
                     User = ?MOSS_USER{name=UserName,
                                       display_name=DisplayName,
-                                      email=Email,
+                                      email=binary_to_list(Email),
                                       key_id=KeyId,
                                       key_secret=KeySecret,
                                       canonical_id=CanonicalId},
@@ -417,7 +417,7 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
 %% for a particular key.
 %% @TODO Consider other options that would give more
 %% assurance that a particular email address is available.
--spec email_available(string(), pid()) -> true | {false, term()}.
+-spec email_available(binary(), pid()) -> true | {false, term()}.
 email_available(Email, RiakPid) ->
     case riakc_pb_socket:get_index(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
         {ok, []} ->
