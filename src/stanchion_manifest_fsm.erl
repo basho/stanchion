@@ -372,11 +372,7 @@ get_and_update(RiakcPid, Manifest, Bucket, Key) ->
             riakc_obj:new(ManifestBucket, Key, term_to_binary(WrappedManifest))
     end,
 
-    %% TODO:
-    %% currently we don't do
-    %% anything to make sure
-    %% this call succeeded
-    riakc_pb_socket:put(RiakcPid, ObjectToWrite).
+    ok = riakc_pb_socket:put(RiakcPid, ObjectToWrite).
 
 %% ===================================================================
 %% Test API
