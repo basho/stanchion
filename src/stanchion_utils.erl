@@ -284,8 +284,7 @@ riak_connection(Host, Port) ->
             {error, {riak_connect_failed, {Else, Host, Port}}}
     end.
 
-%% @doc Create a bucket in the global namespace or return
-%% an error if it already exists.
+%% @doc Set bucket ACL, assuming that the bucket exists.
 -spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
 set_bucket_acl(Bucket, FieldList) ->
     %% @TODO Check for missing fields
