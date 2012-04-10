@@ -29,7 +29,7 @@
 
 %% @doc Construct an acl. The structure is the same for buckets
 %% and objects.
--spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
+-spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl2().
 acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
     OwnerData = {DisplayName, CanonicalId, KeyId},
     ?ACL{owner=OwnerData,
@@ -38,7 +38,7 @@ acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
 
 %% @doc Convert a set of JSON terms representing an ACL into
 %% an internal representation.
--spec acl_from_json(term()) -> acl().
+-spec acl_from_json(term()) -> acl2().
 acl_from_json({struct, Json}) ->
     process_acl_contents(Json, ?ACL{});
 acl_from_json(Json) ->
@@ -109,11 +109,11 @@ permissions_to_json_term(Perms) ->
     [list_to_binary(atom_to_list(Perm)) || Perm <- Perms].
 
 %% @doc Process the top-level elements of the
--spec process_acl_contents([term()], acl()) -> acl().
+-spec process_acl_contents([term()], acl()) -> acl2().
 process_acl_contents([], Acl) ->
     Acl;
 process_acl_contents([{Name, Value} | RestObjects], Acl) ->
-    lager:debug("Object name: ~p", [Name]),
+    _ = lager:debug("Object name: ~p", [Name]),
     case Name of
         <<"owner">> ->
             {struct, OwnerData} = Value,
@@ -130,32 +130,32 @@ process_acl_contents([{Name, Value} | RestObjects], Acl) ->
     process_acl_contents(RestObjects, UpdAcl).
 
 %% @doc Process an JSON element containing acl owner information.
--spec process_owner([term()], acl()) -> acl().
+-spec process_owner([term()], acl()) -> acl2().
 process_owner([], Acl) ->
     Acl;
 process_owner([{Name, Value} | RestObjects], Acl) ->
     Owner = Acl?ACL.owner,
     case Name of
         <<"key_id">> ->
-            lager:debug("Owner Key ID value: ~p", [Value]),
+            _ = lager:debug("Owner Key ID value: ~p", [Value]),
             {OwnerName, OwnerCID, _} = Owner,
             UpdOwner = {OwnerName, OwnerCID, binary_to_list(Value)};
         <<"canonical_id">> ->
-            lager:debug("Owner ID value: ~p", [Value]),
+            _ = lager:debug("Owner ID value: ~p", [Value]),
             {OwnerName, _, OwnerId} = Owner,
             UpdOwner = {OwnerName, binary_to_list(Value), OwnerId};
         <<"display_name">> ->
-            lager:debug("Owner Name content: ~p", [Value]),
+            _ = lager:debug("Owner Name content: ~p", [Value]),
             {_, OwnerCID, OwnerId} = Owner,
             UpdOwner = {binary_to_list(Value), OwnerCID, OwnerId};
         _ ->
-            lager:debug("Encountered unexpected element: ~p", [Name]),
+            _ = lager:debug("Encountered unexpected element: ~p", [Name]),
             UpdOwner = Owner
     end,
     process_owner(RestObjects, Acl?ACL{owner=UpdOwner}).
 
 %% @doc Process an JSON element containing the grants for the acl.
--spec process_grants([term()], acl()) -> acl().
+-spec process_grants([term()], acl()) -> acl2().
 process_grants([], Acl) ->
     Acl;
 process_grants([{_, Value} | RestObjects], Acl) ->
@@ -171,22 +171,22 @@ process_grant([], Grant) ->
 process_grant([{Name, Value} | RestObjects], Grant) ->
     case Name of
         <<"canonical_id">> ->
-            lager:debug("ID value: ~p", [Value]),
+            _ = lager:debug("ID value: ~p", [Value]),
             {{DispName, _}, Perms} = Grant,
             UpdGrant = {{DispName, binary_to_list(Value)}, Perms};
         <<"display_name">> ->
-            lager:debug("Name value: ~p", [Value]),
+            _ = lager:debug("Name value: ~p", [Value]),
             {{_, Id}, Perms} = Grant,
             UpdGrant = {{binary_to_list(Value), Id}, Perms};
         <<"group">> ->
-            lager:debug("Group value: ~p", [Value]),
+            _ = lager:debug("Group value: ~p", [Value]),
             {_, Perms} = Grant,
             UpdGrant = {list_to_atom(
                           binary_to_list(Value)), Perms};
         <<"permissions">> ->
             {Grantee, _} = Grant,
             Perms = process_permissions(Value),
-            lager:debug("Perms value: ~p", [Value]),
+            _ = lager:debug("Perms value: ~p", [Value]),
             UpdGrant = {Grantee, Perms};
         _ ->
             UpdGrant = Grant

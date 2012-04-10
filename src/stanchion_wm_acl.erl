@@ -64,10 +64,10 @@ content_types_accepted(RD, Ctx) ->
     {[{"application/json", accept_body}], RD, Ctx}.
 
 -spec to_json(term(), term()) ->
-                     {iolist(), term(), term()}.
+                     {{'halt', term()}, #wm_reqdata{}, term()}.
 to_json(RD, Ctx) ->
     Bucket = wrq:path_info(bucket, RD),
-    stanchion_response:list_bucket_response(Bucket,
+    stanchion_response:list_buckets_response(Bucket,
                                             RD,
                                             Ctx).
 

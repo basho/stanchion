@@ -47,9 +47,9 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
             end
     end.
 
--spec post_is_create(term(), term()) -> true.
-post_is_create(_RD, _Ctx) ->
-    {true, _RD, _Ctx}.
+-spec post_is_create(term(), term()) -> {true, term(), term()}.
+post_is_create(RD, Ctx) ->
+    {true, RD, Ctx}.
 
 %% @doc Set the path for the new user resource and set
 %% the Location header to generate a 201 Created response.

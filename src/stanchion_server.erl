@@ -50,12 +50,15 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Attempt to create a bucket
--spec create_bucket(binary()) -> ok | {error, term()}.
+-spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
 create_bucket(BucketData) ->
     gen_server:call(?MODULE, {create_bucket, BucketData}).
 
 %% @doc Attempt to create a bucket
--spec create_user([{term(), term()}]) -> ok | {error, term()}.
+-spec create_user([{term(), term()}]) ->
+                         ok |
+                         {error, term()} |
+                         {error, stanchion_utils:riak_connect_failed()}.
 create_user(UserData) ->
     gen_server:call(?MODULE, {create_user, UserData}).
 
@@ -72,7 +75,7 @@ stop(Pid) ->
 %% ===================================================================
 
 %% @doc Initialize the server.
--spec init([] | {test, [atom()]}) -> {ok, state()} | {stop, term()}.
+-spec init([] | test) -> {ok, state()}.
 init([]) ->
     {ok, #state{}};
 init(test) ->
@@ -109,7 +112,7 @@ handle_cast(list_buckets, State) ->
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Event, State) ->
-    lager:warning("Received unknown cast event: ~p", [Event]),
+    _ = lager:warning("Received unknown cast event: ~p", [Event]),
     {noreply, State}.
 
 %% @doc @TODO

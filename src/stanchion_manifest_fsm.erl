@@ -148,8 +148,8 @@ prepare(timeout, State) ->
         {ok, RiakPid} ->
             {next_state, waiting_command, State#state{riakc_pid=RiakPid}};
         {error, Reason} ->
-            lager:error("Failed to establish connection to Riak. Reason: ~p",
-                        [Reason]),
+            _ = lager:error("Failed to establish connection to Riak. Reason: ~p",
+                            [Reason]),
             {stop, riak_connect_failed, State}
     end.
 
@@ -161,7 +161,7 @@ prepare(timeout, State) ->
 waiting_command({add_new_manifest, Manifest}, State=#state{riakc_pid=RiakcPid,
                                                            bucket=Bucket,
                                                            key=Key}) ->
-    get_and_update(RiakcPid, Manifest, Bucket, Key),
+    ok = get_and_update(RiakcPid, Manifest, Bucket, Key),
     {next_state, waiting_update_command, State}.
 
 waiting_update_command({update_manifest, Manifest}, State=#state{riakc_pid=RiakcPid,
@@ -169,7 +169,7 @@ waiting_update_command({update_manifest, Manifest}, State=#state{riakc_pid=Riakc
                                                                  key=Key,
                                                                  riak_object=undefined,
                                                                  manifests=undefined}) ->
-    get_and_update(RiakcPid, Manifest, Bucket, Key),
+    ok = get_and_update(RiakcPid, Manifest, Bucket, Key),
     {next_state, waiting_update_command, State};
 waiting_update_command({update_manifest, Manifest}, State=#state{riakc_pid=RiakcPid,
                                                                  riak_object=PreviousRiakObject,
@@ -182,7 +182,7 @@ waiting_update_command({update_manifest, Manifest}, State=#state{riakc_pid=Riakc
     %% currently we don't do
     %% anything to make sure
     %% this call succeeded
-    riakc_pb_socket:put(RiakcPid, RiakObject),
+    ok = riakc_pb_socket:put(RiakcPid, RiakObject),
     {next_state, waiting_update_command, State#state{riak_object=undefined, manifests=undefined}}.
 
 
@@ -241,7 +241,7 @@ waiting_command(mark_active_as_pending_delete, _From, State=#state{riakc_pid=Ria
                                 Value
                         end end, Resolved),
             NewRiakObject = riakc_obj:update_value(RiakObject, term_to_binary(Marked)),
-            riakc_pb_socket:put(RiakcPid, NewRiakObject),
+            ok = riakc_pb_socket:put(RiakcPid, NewRiakObject),
             {stop, normal, ok, State};
         {error, notfound}=NotFound ->
             {stop, normal, NotFound, State}
@@ -343,7 +343,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 -spec get_manifests(pid(), binary(), binary()) ->
     {ok, term(), term()} | {error, notfound}.
 get_manifests(RiakcPid, Bucket, Key) ->
-    ManifestBucket = stanchion:to_bucket_name(objects, Bucket),
+    ManifestBucket = stanchion_utils:to_bucket_name(objects, Bucket),
     case riakc_pb_socket:get(RiakcPid, ManifestBucket, Key) of
         {ok, Object} ->
             Siblings = riakc_obj:get_values(Object),

@@ -75,12 +75,12 @@ create_bucket(BucketFields) ->
     do_bucket_op(Bucket, OwnerId, Acl, create).
 
 %% @doc Attmpt to create a new user
--spec create_user([{term(), term()}]) -> ok | {error, term()}.
+-spec create_user([{term(), term()}]) -> ok | {error, riak_connect_failed() | term()}.
 create_user(UserFields) ->
     %% @TODO Check for missing fields
     UserName = binary_to_list(proplists:get_value(<<"name">>, UserFields, <<>>)),
     DisplayName = binary_to_list(proplists:get_value(<<"display_name">>, UserFields, <<>>)),
-    Email= binary_to_list(proplists:get_value(<<"email">>, UserFields, <<>>)),
+    Email = proplists:get_value(<<"email">>, UserFields, <<>>),
     KeyId = binary_to_list(proplists:get_value(<<"key_id">>, UserFields, <<>>)),
     KeySecret = binary_to_list(proplists:get_value(<<"key_secret">>, UserFields, <<>>)),
     CanonicalId = binary_to_list(proplists:get_value(<<"canonical_id">>, UserFields, <<>>)),
@@ -90,7 +90,7 @@ create_user(UserFields) ->
                 true ->
                     User = ?MOSS_USER{name=UserName,
                                       display_name=DisplayName,
-                                      email=Email,
+                                      email=binary_to_list(Email),
                                       key_id=KeyId,
                                       key_secret=KeySecret,
                                       canonical_id=CanonicalId},
@@ -100,8 +100,8 @@ create_user(UserFields) ->
             end,
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Delete a bucket
@@ -117,13 +117,13 @@ delete_object(BucketName, Key) ->
             Res = riakc_pb_socket:delete(RiakPid, BucketName, Key),
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
+        {error, _} = Else ->
+            Else
     end.
 
 %% Get the root bucket name for either a MOSS object
 %% bucket or the data block bucket name.
--spec from_bucket_name(binary()) -> binary().
+-spec from_bucket_name(binary()) -> {blocks | objects, binary()}.
 from_bucket_name(BucketNameWithPrefix) ->
     BlocksName = ?BLOCK_BUCKET_PREFIX,
     ObjectsName = ?OBJECT_BUCKET_PREFIX,
@@ -146,66 +146,66 @@ get_admin_creds() ->
                 {ok, Secret} ->
                     {ok, {KeyId, Secret}};
                 undefined ->
-                    lager:warning("The admin user's secret has not been defined."),
+                    _ = lager:warning("The admin user's secret has not been defined."),
                     {error, secret_undefined}
             end;
         undefined ->
-            lager:warning("The admin user's key id has not been defined."),
+            _ = lager:warning("The admin user's key id has not been defined."),
             {error, key_id_undefined}
     end.
 
 %% @doc Return a user's buckets.
--spec get_buckets(all | binary()) -> [binary()].
+-spec get_buckets(all | binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
 get_buckets(<<>>) ->
     get_keys_and_values(?BUCKETS_BUCKET);
 get_buckets(OwnerId) ->
     case get_keys_and_values(?BUCKETS_BUCKET) of
         {ok, KeyValuePairs} ->
-            [{Key, Value} || {Key, Value} <- KeyValuePairs,
-                           Value == OwnerId];
+            {ok, [{Key, Value} || {Key, Value} <- KeyValuePairs,
+                                  Value == OwnerId]};
         {error, Reason} ->
             {error, Reason}
     end.
 
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary()) ->
-                        {ok, binary()} | {error, term()}.
+                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key) ->
     case riak_connection() of
         {ok, RiakPid} ->
             Res = get_object(BucketName, Key, RiakPid),
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary(), pid()) ->
-                        {ok, binary()} | {error, term()}.
+                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key, RiakPid) ->
     riakc_pb_socket:get(RiakPid, BucketName, Key).
 
 %% @doc List the keys from a bucket
--spec list_keys(binary()) -> {ok, [binary()]}.
+-spec list_keys(binary()) -> {ok, [binary()]} | {error, term()}.
 list_keys(BucketName) ->
     case riak_connection() of
         {ok, RiakPid} ->
             Res = list_keys(BucketName, RiakPid),
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, Reason}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc List the keys from a bucket
--spec list_keys(binary(), pid()) -> {ok, [binary()]}.
+-spec list_keys(binary(), pid()) -> {ok, [binary()]} | {error, term()}.
 list_keys(BucketName, RiakPid) ->
     case riakc_pb_socket:list_keys(RiakPid, BucketName) of
         {ok, Keys} ->
             {ok, lists:sort(Keys)};
-        {error, Reason} ->
-            {error, Reason}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Integer version of the standard pow() function; call the recursive accumulator to calculate.
@@ -242,13 +242,14 @@ put_object(BucketName, Key, Value, Metadata) ->
             Res = riakc_pb_socket:put(RiakPid, NewObj),
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, Reason}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Get a protobufs connection to the riak cluster
 %% using information from the application environment.
--spec riak_connection() -> {ok, pid()} | {error, term()}.
+-type riak_connect_failed() :: {riak_connect_failed, tuple()}.
+-spec riak_connection() -> {ok, pid()} | {error, riak_connect_failed()}.
 riak_connection() ->
     case application:get_env(stanchion, riak_ip) of
         {ok, Host} ->
@@ -265,9 +266,23 @@ riak_connection() ->
     riak_connection(Host, Port).
 
 %% @doc Get a protobufs connection to the riak cluster.
--spec riak_connection(string(), pos_integer()) -> {ok, pid()} | {error, term()}.
+-spec riak_connection(string(), pos_integer()) -> {ok, pid()} | {error, riak_connect_failed()}.
 riak_connection(Host, Port) ->
-    riakc_pb_socket:start_link(Host, Port).
+    %% We use start() here instead of start_link() because if we can't
+    %% connect to Host & Port for whatever reason (e.g. service down,
+    %% host down, host unreachable, ...), then we'll be crashed by the
+    %% newly-spawned-gen_server-proc's link to us.
+    %%
+    %% There is still a race condition if the PB socket proc's init()
+    %% is successful but then dies immediately *before* we call the
+    %% link() BIF.  That's life in the big city.
+    case riakc_pb_socket:start(Host, Port) of
+        {ok, Pid} = Good ->
+            true = link(Pid),
+            Good;
+        {error, Else} ->
+            {error, {riak_connect_failed, {Else, Host, Port}}}
+    end.
 
 %% @doc Create a bucket in the global namespace or return
 %% an error if it already exists.
@@ -277,11 +292,11 @@ set_bucket_acl(Bucket, FieldList) ->
     OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
     AclJson = proplists:get_value(<<"acl">>, FieldList, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
-    do_bucket_op(Bucket, OwnerId, Acl, create).
+    do_bucket_op(Bucket, OwnerId, Acl, update_acl).
 
 %% Get the proper bucket name for either the MOSS object
 %% bucket or the data block bucket.
--spec to_bucket_name([objects | blocks], binary()) -> binary().
+-spec to_bucket_name(objects | blocks, binary()) -> binary().
 to_bucket_name(objects, Name) ->
     <<?OBJECT_BUCKET_PREFIX/binary, Name/binary>>;
 to_bucket_name(blocks, Name) ->
@@ -364,7 +379,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
             end;
         {error, Reason} ->
             %% @TODO Maybe bubble up this error info
-            lager:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p", [Bucket, Reason]),
+            _ = lager:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p", [Bucket, Reason]),
             {false, Reason}
     end.
 
@@ -391,8 +406,8 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
             end,
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, {riak_connect_failed, Reason}}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Determine if a user with the specified email
@@ -402,7 +417,7 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
 %% for a particular key.
 %% @TODO Consider other options that would give more
 %% assurance that a particular email address is available.
--spec email_available(string(), pid()) -> true | {false, atom()}.
+-spec email_available(binary(), pid()) -> true | {false, term()}.
 email_available(Email, RiakPid) ->
     case riakc_pb_socket:get_index(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
         {ok, []} ->
@@ -411,13 +426,13 @@ email_available(Email, RiakPid) ->
             {false, user_already_exists};
         {error, Reason} ->
             %% @TODO Maybe bubble up this error info
-            lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p", [Email, Reason]),
+            _ = lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p", [Email, Reason]),
             {false, Reason}
     end.
 
 %% @doc Return a list of keys for a bucket along
 %% with their associated values
--spec get_keys_and_values(binary()) -> {ok, [{binary(), binary()}]}.
+-spec get_keys_and_values(binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
 get_keys_and_values(BucketName) ->
     case riak_connection() of
         {ok, RiakPid} ->
@@ -432,19 +447,19 @@ get_keys_and_values(BucketName) ->
             end,
             close_riak_connection(RiakPid),
             Res;
-        {error, Reason} ->
-            {error, Reason}
+        {error, _} = Else ->
+            Else
     end.
 
 %% @doc Extract the value from a Riak object.
 -spec get_value(binary(), binary(), pid()) ->
-                        {ok, binary()} | {error, term()}.
+                       binary().
 get_value(BucketName, Key, RiakPid) ->
     case get_object(BucketName, Key, RiakPid) of
         {ok, RiakObj} ->
             riakc_obj:get_value(RiakObj);
         {error, Reason} ->
-            lager:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
+            _ = lager:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
             <<"unknown">>
     end.
 
@@ -454,7 +469,7 @@ save_user(User, RiakPid) ->
     Indexes = [{?EMAIL_INDEX, User?MOSS_USER.email},
                {?ID_INDEX, User?MOSS_USER.canonical_id}],
     Meta = dict:store(?MD_INDEX, Indexes, dict:new()),
-    Obj = riakc_obj:new(?USER_BUCKET, User?MOSS_USER.key_id, User),
+    Obj = riakc_obj:new(?USER_BUCKET, iolist_to_binary(User?MOSS_USER.key_id), term_to_binary(User)),
     UserObj = riakc_obj:update_metadata(Obj, Meta),
     %% @TODO Error handling
     riakc_pb_socket:put(RiakPid, UserObj).

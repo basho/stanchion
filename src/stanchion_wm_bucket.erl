@@ -14,7 +14,7 @@
          to_xml/2,
          allowed_methods/2,
          content_types_accepted/2,
-         accept_body/2,
+         %% accept_body/2,
          delete_resource/2]).
 
 -include("stanchion.hrl").
@@ -74,32 +74,39 @@ content_types_accepted(RD, Ctx) ->
 
 
 -spec to_xml(term(), term()) ->
-    {iolist(), term(), term()}.
+    {{'halt', _}, #wm_reqdata{}, term()}.
 to_xml(RD, Ctx) ->
     Bucket = wrq:path_info(bucket, RD),
-    stanchion_response:list_bucket_response(Bucket,
+    stanchion_response:list_buckets_response(Bucket,
                                                  RD,
                                                  Ctx).
+
+%% SLF: Dialyzer note: As far as I can tell, the func
+%%      stanchion_utils:update_bucket_owner() has never existed.
+%%      So this function is darn broken, so I'm commenting the
+%%      whole thing out so that the breakage is even more visible
+%%      at runtime.
+
 %% TODO:
 %% Add content_types_accepted when we add
 %% in PUT and POST requests.
-accept_body(ReqData, Ctx) ->
-    Bucket = wrq:path_info(bucket, ReqData),
-    NewOwnerId = list_to_binary(wrq:get_qs_value("owner", "", ReqData)),
-    case stanchion_utils:update_bucket_owner(Bucket,
-                                                  NewOwnerId) of
-        ok ->
-            {true, ReqData, Ctx};
-        {error, Reason} ->
-            stanchion_response:api_error(Reason, ReqData, Ctx)
-    end.
+%% accept_body(ReqData, Ctx) ->
+%%     Bucket = wrq:path_info(bucket, ReqData),
+%%     NewOwnerId = list_to_binary(wrq:get_qs_value("owner", "", ReqData)),
+%%     case stanchion_utils:update_bucket_owner(Bucket,
+%%                                                   NewOwnerId) of
+%%         ok ->
+%%             {true, ReqData, Ctx};
+%%         {error, Reason} ->
+%%             stanchion_response:api_error(Reason, ReqData, Ctx)
+%%     end.
 
 %% @doc Callback for deleting a bucket.
--spec delete_resource(term(), term()) -> boolean().
+-spec delete_resource(term(), term()) -> {'true' | {'halt', term()}, #wm_reqdata{}, term()}.
 delete_resource(ReqData, Ctx) ->
     Bucket = list_to_binary(wrq:path_info(bucket, ReqData)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", ReqData)),
-    lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
+    _ = lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
     case stanchion_server:delete_bucket(Bucket, RequesterId) of
         ok ->
             {true, ReqData, Ctx};
