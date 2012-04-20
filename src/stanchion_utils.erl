@@ -385,6 +385,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
 
 %% @doc Perform an operation on a bucket.
 -spec do_bucket_op(binary(), binary(), acl(), atom()) -> ok | {error, term()}.
+do_bucket_op(<<"riak-cs">>, _OwnerId, _Acl, _BucketOp) ->
+    {error, access_denied};
 do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
     case riak_connection() of
         {ok, RiakPid} ->
