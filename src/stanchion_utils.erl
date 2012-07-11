@@ -30,6 +30,7 @@
          riak_connection/2,
          set_bucket_acl/2,
          to_bucket_name/2]).
+-export([do_bucket_op/4]). %SLF experimental thing
 
 -include("stanchion.hrl").
 -include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
