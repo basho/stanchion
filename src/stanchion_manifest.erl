@@ -88,14 +88,14 @@ orddict_values(OrdDict) ->
     %% func
     [V || {_K, V} <- OrdDict].
 
-most_recent_active_manifest(Manifest=#lfs_manifest_v2{state=active}, no_active_manifest) ->
+most_recent_active_manifest(Manifest=#lfs_manifest_v3{state=active}, no_active_manifest) ->
     Manifest;
 most_recent_active_manifest(_Manfest, no_active_manifest) ->
     no_active_manifest;
-most_recent_active_manifest(Man1=#lfs_manifest_v2{state=active}, Man2=#lfs_manifest_v2{state=active}) ->
-    case Man1#lfs_manifest_v2.write_start_time > Man2#lfs_manifest_v2.write_start_time of
+most_recent_active_manifest(Man1=#lfs_manifest_v3{state=active}, Man2=#lfs_manifest_v3{state=active}) ->
+    case Man1#lfs_manifest_v3.write_start_time > Man2#lfs_manifest_v3.write_start_time of
         true -> Man1;
         false -> Man2
     end;
-most_recent_active_manifest(Man1=#lfs_manifest_v2{state=active}, _Man2) -> Man1;
-most_recent_active_manifest(_Man1, Man2=#lfs_manifest_v2{state=active}) -> Man2.
+most_recent_active_manifest(Man1=#lfs_manifest_v3{state=active}, _Man2) -> Man1;
+most_recent_active_manifest(_Man1, Man2=#lfs_manifest_v3{state=active}) -> Man2.
