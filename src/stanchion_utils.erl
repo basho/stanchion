@@ -32,7 +32,7 @@
          to_bucket_name/2]).
 
 -include("stanchion.hrl").
--include_lib("riakc/include/riakc_obj.hrl").
+-include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
 
 -define(EMAIL_INDEX, <<"email_bin">>).
 -define(ID_INDEX, <<"c_id_bin">>).
