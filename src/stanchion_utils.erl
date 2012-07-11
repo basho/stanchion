@@ -85,7 +85,7 @@ create_user(UserFields) ->
     KeyId = binary_to_list(proplists:get_value(<<"key_id">>, UserFields, <<>>)),
     KeySecret = binary_to_list(proplists:get_value(<<"key_secret">>, UserFields, <<>>)),
     CanonicalId = binary_to_list(proplists:get_value(<<"canonical_id">>, UserFields, <<>>)),
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             case email_available(Email, RiakPid) of
                 true ->
@@ -99,7 +99,7 @@ create_user(UserFields) ->
                 {false, Reason1} ->
                     Res = {error, Reason1}
             end,
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -113,10 +113,10 @@ delete_bucket(Bucket, OwnerId) ->
 %% @doc Delete an object from Riak
 -spec delete_object(binary(), binary()) -> ok.
 delete_object(BucketName, Key) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             Res = riakc_pb_socket:delete(RiakPid, BucketName, Key),
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -172,10 +172,10 @@ get_buckets(OwnerId) ->
 -spec get_object(binary(), binary()) ->
                         {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             Res = get_object(BucketName, Key, RiakPid),
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -190,10 +190,10 @@ get_object(BucketName, Key, RiakPid) ->
 %% @doc List the keys from a bucket
 -spec list_keys(binary()) -> {ok, [binary()]} | {error, term()}.
 list_keys(BucketName) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             Res = list_keys(BucketName, RiakPid),
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -236,12 +236,12 @@ put_bucket(BucketObj, OwnerId, Acl, RiakPid) ->
 %% @doc Store an object in Riak
 -spec put_object(binary(), binary(), binary(), [term()]) -> ok.
 put_object(BucketName, Key, Value, Metadata) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             RiakObject = riakc_obj:new(BucketName, Key, Value),
             NewObj = riakc_obj:update_metadata(RiakObject, Metadata),
             Res = riakc_pb_socket:put(RiakPid, NewObj),
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -394,7 +394,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
 do_bucket_op(<<"riak-cs">>, _OwnerId, _Acl, _BucketOp) ->
     {error, access_denied};
 do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             %% Buckets operations can only be completed if the bucket exists
             %% and the requesting party owns the bucket.
@@ -412,7 +412,7 @@ do_bucket_op(Bucket, OwnerId, Acl, BucketOp) ->
                 {false, Reason1} ->
                     Res = {error, Reason1}
             end,
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
@@ -442,7 +442,7 @@ email_available(Email, RiakPid) ->
 %% with their associated values
 -spec get_keys_and_values(binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
 get_keys_and_values(BucketName) ->
-    case riak_connection() of
+    case ?MODULE:riak_connection() of
         {ok, RiakPid} ->
             case list_keys(BucketName, RiakPid) of
                 {ok, Keys} ->
@@ -453,7 +453,7 @@ get_keys_and_values(BucketName) ->
                 {error, Reason1} ->
                     Res = {error, Reason1}
             end,
-            close_riak_connection(RiakPid),
+            ?MODULE:close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
             Else
