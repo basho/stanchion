@@ -19,8 +19,10 @@
          get_admin_creds/0,
          get_buckets/1,
          get_keys_and_values/1,
+         get_manifests/3,
          get_object/2,
          get_object/3,
+         has_tombstone/1,
          list_keys/1,
          list_keys/2,
          pow/2,
@@ -29,6 +31,7 @@
          riak_connection/0,
          riak_connection/2,
          set_bucket_acl/2,
+         timestamp/1,
          to_bucket_name/2]).
 
 -include("stanchion.hrl").
@@ -167,6 +170,30 @@ get_buckets(OwnerId) ->
             {error, Reason}
     end.
 
+%% @doc
+-spec get_manifests(pid(), binary(), binary()) ->
+    {ok, term(), term()} | {error, notfound}.
+get_manifests(RiakcPid, Bucket, Key) ->
+    case get_manifests_raw(RiakcPid, Bucket, Key) of
+        {ok, Object} ->
+            DecodedSiblings = [binary_to_term(V) ||
+                                  {_, V}=Content <- riakc_obj:get_contents(Object),
+                                  not has_tombstone(Content)],
+
+            %% Upgrade the manifests to be the latest erlang
+            %% record version
+            Upgraded = stanchion_manifest_utils:upgrade_wrapped_manifests(DecodedSiblings),
+
+            %% resolve the siblings
+            Resolved = stanchion_manifest_resolution:resolve(Upgraded),
+
+            %% prune old scheduled_delete manifests
+            Pruned = stanchion_manifest_utils:prune(Resolved),
+            {ok, Object, Pruned};
+        {error, notfound}=NotFound ->
+            NotFound
+    end.
+
 %% @doc Get an object from Riak
 -spec get_object(binary(), binary()) ->
                         {ok, riakc_obj:riakc_obj()} | {error, term()}.
@@ -185,6 +212,13 @@ get_object(BucketName, Key) ->
                         {ok, riakc_obj:riakc_obj()} | {error, term()}.
 get_object(BucketName, Key, RiakPid) ->
     riakc_pb_socket:get(RiakPid, BucketName, Key).
+
+%% @doc Determine if a set of contents of a riak object has a tombstone.
+-spec has_tombstone({dict(), binary()}) -> boolean().
+has_tombstone({_, <<>>}) ->
+    true;
+has_tombstone({MD, _V}) ->
+    dict:is_key(<<"X-Riak-Deleted">>, MD) =:= true.
 
 %% @doc List the keys from a bucket
 -spec list_keys(binary()) -> {ok, [binary()]} | {error, term()}.
@@ -293,6 +327,11 @@ set_bucket_acl(Bucket, FieldList) ->
     AclJson = proplists:get_value(<<"acl">>, FieldList, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
     do_bucket_op(Bucket, OwnerId, Acl, update_acl).
+
+%% @doc Generate a key for storing a set of manifests for deletion.
+-spec timestamp(erlang:timestamp()) -> non_neg_integer().
+timestamp({MegaSecs, Secs, _MicroSecs}) ->
+    (MegaSecs * 1000000) + Secs.
 
 %% Get the proper bucket name for either the MOSS object
 %% bucket or the data block bucket.
@@ -452,6 +491,14 @@ get_keys_and_values(BucketName) ->
         {error, _} = Else ->
             Else
     end.
+
+%% internal fun to retrieve the riak object
+%% at a bucket/key
+-spec get_manifests_raw(pid(), binary(), binary()) ->
+    {ok, riakc_obj:riakc_obj()} | {error, notfound}.
+get_manifests_raw(RiakcPid, Bucket, Key) ->
+    ManifestBucket = to_bucket_name(objects, Bucket),
+    riakc_pb_socket:get(RiakcPid, ManifestBucket, Key).
 
 %% @doc Extract the value from a Riak object.
 -spec get_value(binary(), binary(), pid()) ->

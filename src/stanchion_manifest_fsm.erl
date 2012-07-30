@@ -80,7 +80,7 @@ get_all_manifests(Pid) ->
 get_active_manifest(Pid) ->
     case gen_fsm:sync_send_event(Pid, get_manifests, infinity) of
         {ok, Manifests} ->
-            case riak_cs_manifest_utils:active_manifest(Manifests) of
+            case stanchion_manifest_utils:active_manifest(Manifests) of
                 {ok, _Active}=ActiveReply ->
                     ActiveReply;
                 {error, no_active_manifest} ->
@@ -104,14 +104,14 @@ get_specific_manifest(Pid, UUID) ->
     end.
 
 add_new_manifest(Pid, Manifest) ->
-    Dict = riak_cs_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
+    Dict = stanchion_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
     gen_fsm:send_event(Pid, {add_new_dict, Dict}).
 
 update_manifests(Pid, Manifests) ->
     gen_fsm:send_event(Pid, {update_manifests, Manifests}).
 
 update_manifest(Pid, Manifest) ->
-    Dict = riak_cs_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
+    Dict = stanchion_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
     update_manifests(Pid, Dict).
 
 %% @doc Delete a specific manifest version from a manifest and
@@ -128,7 +128,7 @@ update_manifests_with_confirmation(Pid, Manifests) ->
 
 -spec update_manifest_with_confirmation(pid(), lfs_manifest()) -> ok | {error, term()}.
 update_manifest_with_confirmation(Pid, Manifest) ->
-    Dict = riak_cs_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
+    Dict = stanchion_manifest_utils:new_dict(Manifest?MANIFEST.uuid, Manifest),
     update_manifests_with_confirmation(Pid, Dict).
 
 stop(Pid) ->
@@ -237,7 +237,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 handle_get_manifests(State=#state{riakc_pid=RiakcPid,
                            bucket=Bucket,
                            key=Key}) ->
-    case riak_moss_utils:get_manifests(RiakcPid, Bucket, Key) of
+    case stanchion_utils:get_manifests(RiakcPid, Bucket, Key) of
         {ok, RiakObject, Resolved} ->
             Reply = {ok, Resolved},
             NewState = State#state{riak_object=RiakObject, manifests=Resolved},
@@ -253,19 +253,19 @@ handle_get_manifests(State=#state{riakc_pid=RiakcPid,
 -spec get_and_delete(pid(), binary(), binary(), binary()) -> ok |
                                                              {error, term()}.
 get_and_delete(RiakcPid, UUID, Bucket, Key) ->
-    case riak_moss_utils:get_manifests(RiakcPid, Bucket, Key) of
+    case stanchion_utils:get_manifests(RiakcPid, Bucket, Key) of
         {ok, RiakObject, Manifests} ->
             ResolvedManifests = stanchion_manifest_resolution:resolve([Manifests]),
             UpdatedManifests = orddict:erase(UUID, ResolvedManifests),
             case UpdatedManifests of
                 [] ->
-                    ManifestBucket = riak_moss_utils:to_bucket_name(objects, Bucket),
+                    ManifestBucket = stanchion_utils:to_bucket_name(objects, Bucket),
                     riakc_pb_socket:delete(RiakcPid, ManifestBucket, Key);
                 _ ->
                     ObjectToWrite =
                         riakc_obj:update_value(RiakObject,
                                                term_to_binary(UpdatedManifests)),
-                    riak_moss_utils:put_with_no_meta(RiakcPid, ObjectToWrite)
+                    stanchion_utils:put_with_no_meta(RiakcPid, ObjectToWrite)
             end;
         {error, notfound} ->
             ok
@@ -278,16 +278,16 @@ get_and_update(RiakcPid, WrappedManifests, Bucket, Key) ->
     %% NOTE: it would also be nice to assert that the
     %% UUID being added doesn't already exist in the
     %% dict
-    case riak_moss_utils:get_manifests(RiakcPid, Bucket, Key) of
+    case stanchion_utils:get_manifests(RiakcPid, Bucket, Key) of
         {ok, RiakObject, Manifests} ->
             NewManiAdded = stanchion_manifest_resolution:resolve([WrappedManifests, Manifests]),
-            OverwrittenUUIDs = riak_cs_manifest_utils:overwritten_UUIDs(Manifests),
+            OverwrittenUUIDs = stanchion_manifest_utils:overwritten_UUIDs(Manifests),
             case OverwrittenUUIDs of
                 [] ->
                     ObjectToWrite = riakc_obj:update_value(RiakObject,
                         term_to_binary(NewManiAdded)),
 
-                    Result = riak_moss_utils:put_with_no_meta(RiakcPid, ObjectToWrite);
+                    Result = stanchion_utils:put_with_no_meta(RiakcPid, ObjectToWrite);
                 _ ->
                     Result = riak_cs_gc:gc_manifests(Bucket,
                                                     Key,                                                                                     NewManiAdded,
@@ -297,9 +297,9 @@ get_and_update(RiakcPid, WrappedManifests, Bucket, Key) ->
             end,
             {Result, RiakObject, Manifests};
         {error, notfound} ->
-            ManifestBucket = riak_moss_utils:to_bucket_name(objects, Bucket),
+            ManifestBucket = stanchion_utils:to_bucket_name(objects, Bucket),
             ObjectToWrite = riakc_obj:new(ManifestBucket, Key, term_to_binary(WrappedManifests)),
-            PutResult = riak_moss_utils:put_with_no_meta(RiakcPid, ObjectToWrite),
+            PutResult = stanchion_utils:put_with_no_meta(RiakcPid, ObjectToWrite),
             {PutResult, undefined, undefined}
     end.
 
@@ -318,7 +318,7 @@ update_from_previous_read(RiakcPid, RiakObject,
     %% anything to make sure
     %% this call succeeded
 
-    riak_moss_utils:put_with_no_meta(RiakcPid, NewRiakObject).
+    stanchion_utils:put_with_no_meta(RiakcPid, NewRiakObject).
 
 %% ===================================================================
 %% Test API
