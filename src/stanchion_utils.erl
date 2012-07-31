@@ -126,7 +126,7 @@ delete_object(BucketName, Key) ->
 
 %% Get the root bucket name for either a MOSS object
 %% bucket or the data block bucket name.
--spec from_bucket_name(binary()) -> {blocks | objects, binary()}.
+-spec from_bucket_name(binary()) -> {'blocks' | 'objects', binary()}.
 from_bucket_name(BucketNameWithPrefix) ->
     BlocksName = ?BLOCK_BUCKET_PREFIX,
     ObjectsName = ?OBJECT_BUCKET_PREFIX,
@@ -336,10 +336,15 @@ timestamp({MegaSecs, Secs, _MicroSecs}) ->
 %% Get the proper bucket name for either the MOSS object
 %% bucket or the data block bucket.
 -spec to_bucket_name(objects | blocks, binary()) -> binary().
-to_bucket_name(objects, Name) ->
-    <<?OBJECT_BUCKET_PREFIX/binary, Name/binary>>;
-to_bucket_name(blocks, Name) ->
-    <<?BLOCK_BUCKET_PREFIX/binary, Name/binary>>.
+to_bucket_name(Type, Bucket) ->
+    case Type of
+        objects ->
+            Prefix = ?OBJECT_BUCKET_PREFIX;
+        blocks ->
+            Prefix = ?BLOCK_BUCKET_PREFIX
+    end,
+    BucketHash = crypto:md5(Bucket),
+    <<Prefix/binary, BucketHash/binary>>.
 
 %% ===================================================================
 %% Internal functions
@@ -355,7 +360,7 @@ bucket_empty(Bucket, RiakPid) ->
         {ok, Keys} ->
             FoldFun =
                 fun(Key, Acc) ->
-                        {ok, ManiPid} = stanchion_manifest_fsm:start_link(Bucket, Key),
+                        {ok, ManiPid} = stanchion_manifest_fsm:start_link(Bucket, Key, RiakPid),
                         case stanchion_manifest_fsm:get_active_manifest(ManiPid) of
                             {ok, _} ->
                                 [Key | Acc];
