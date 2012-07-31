@@ -188,8 +188,11 @@ get_manifests(RiakcPid, Bucket, Key) ->
             Resolved = stanchion_manifest_resolution:resolve(Upgraded),
 
             %% prune old scheduled_delete manifests
-            Pruned = stanchion_manifest_utils:prune(Resolved),
-            {ok, Object, Pruned};
+            
+            %% commented out because we don't have the
+            %% riak_cs_gc module
+            %% Pruned = stanchion_manifest_utils:prune(Resolved),
+            {ok, Object, Resolved};
         {error, notfound}=NotFound ->
             NotFound
     end.
