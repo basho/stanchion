@@ -53,6 +53,10 @@ devrel:
 	mkdir -p dev
 	(cd rel && ../rebar generate target_dir=../dev/$(REPO) overlay_vars=vars/dev_vars.config)
 
+rtdevrel:
+	(cd rel && ../rebar generate target_dir=$(RT_TARGET_STANCHION) overlay_vars=vars/dev_vars.config)
+
+
 devclean: clean
 	rm -rf dev
 
