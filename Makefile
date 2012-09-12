@@ -49,7 +49,7 @@ stage : rel
 	$(foreach dep,$(wildcard deps/*), rm -rf rel/stanchion/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/stanchion/lib;)
 	$(foreach app,$(wildcard apps/*), rm -rf rel/stanchion/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/stanchion/lib;)
 
-devrel:
+devrel: all
 	mkdir -p dev
 	(cd rel && ../rebar generate target_dir=../dev/$(REPO) overlay_vars=vars.config)
 
