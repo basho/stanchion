@@ -52,7 +52,7 @@ start_link() ->
 %% @doc Attempt to create a bucket
 -spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
 create_bucket(BucketData) ->
-    gen_server:call(?MODULE, {create_bucket, BucketData}).
+    gen_server:call(?MODULE, {create_bucket, BucketData}, infinity).
 
 %% @doc Attempt to create a bucket
 -spec create_user([{term(), term()}]) ->
@@ -60,12 +60,12 @@ create_bucket(BucketData) ->
                          {error, term()} |
                          {error, stanchion_utils:riak_connect_failed()}.
 create_user(UserData) ->
-    gen_server:call(?MODULE, {create_user, UserData}).
+    gen_server:call(?MODULE, {create_user, UserData}, infinity).
 
 %% @doc Attempt to delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, UserId) ->
-    gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}).
+    gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}, infinity).
 
 stop(Pid) ->
     gen_server:cast(Pid, stop).
