@@ -254,7 +254,7 @@ seconds_diff(T2, T1) ->
 -ifdef(TEST).
 
 new_mani_helper() ->
-    riak_moss_lfs_utils:new_manifest(<<"bucket">>,
+    riak_cs_lfs_utils:new_manifest(<<"bucket">>,
         <<"key">>,
         <<"uuid">>,
         100, %% content-length
