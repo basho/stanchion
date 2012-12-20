@@ -10,7 +10,7 @@ mkdir /tmp/rtstanchion
 for rel in */dev; do
     vsn=$(dirname "$rel")
     mkdir "/tmp/rtstanchion/$vsn"
-    cp -a "$rel" "/tmp/rtstanchion/$vsn"
+    cp -p -P -R "$rel" "/tmp/rtstanchion/$vsn"
 done
 cd /tmp/rtstanchion
 git init

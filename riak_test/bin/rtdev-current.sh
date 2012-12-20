@@ -5,7 +5,7 @@ git clean -fd
 rm -rf /tmp/rtstanchion/current
 mkdir /tmp/rtstanchion/current
 cd $cwd
-cp -a dev /tmp/rtstanchion/current
+cp -p -P -R dev /tmp/rtstanchion/current
 cd /tmp/rtstanchion
 git add .
 git commit -a -m "riak_test init" --amend
