@@ -98,7 +98,6 @@ delete_resource(RD, Ctx) ->
             % @TODO: does 204 really good? how does s3 works?
             {{halt, 204}, RD, Ctx};
         {error, Reason} ->
-            erlang:display(delete_bucket_policy),
             stanchion_response:api_error(Reason, RD, Ctx)
     end.
 

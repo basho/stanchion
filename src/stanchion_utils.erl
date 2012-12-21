@@ -265,7 +265,7 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
--spec put_bucket(term(), binary(), {acl, acl()}|{policy, policy()}, pid())
+-spec put_bucket(term(), binary(), {acl, acl()}|{policy, binary()}, pid())
                 -> ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
     UpdBucketObj0 = riakc_obj:update_value(BucketObj, OwnerId),
@@ -375,8 +375,11 @@ set_bucket_acl(Bucket, FieldList) ->
 set_bucket_policy(Bucket, FieldList) ->
     OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
     PolicyJson = proplists:get_value(<<"policy">>, FieldList, []),
-    Policy = stanchion_policy:policy_from_json(PolicyJson),
-    do_bucket_op(Bucket, OwnerId, {policy, Policy}, update_policy).
+
+    % @TODO: Already Checked at Riak CS, so store as it is JSON here
+    % if overhead of parsing JSON were expensive, need to import
+    % code of JSON parse from riak_cs_s3_policy
+    do_bucket_op(Bucket, OwnerId, {policy, PolicyJson}, update_policy).
 
 
 %% @doc Delete a bucket
@@ -493,7 +496,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
 
 %% @doc Perform an operation on a bucket.
 -spec do_bucket_op(binary(), binary(),
-                   {acl, acl()}|{policy, policy()},
+                   {acl, acl()}|{policy, binary()},
                    bucket_op()) -> ok | {error, term()}.
 do_bucket_op(<<"riak-cs">>, _OwnerId, _Acl, _BucketOp) ->
     {error, access_denied};
