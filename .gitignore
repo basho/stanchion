@@ -10,3 +10,4 @@ dev
 log/
 *~
 /log
+riak_test/bin/stanchion*
