@@ -29,6 +29,7 @@
           creation_date :: string(),
           modification_time :: erlang:timestamp(),
           acl :: acl()}).
+
 -type moss_bucket() :: #moss_bucket_v1{}.
 
 -type acl_perm() :: 'READ' | 'WRITE' | 'READ_ACP' | 'WRITE_ACP' | 'FULL_CONTROL'.
@@ -45,6 +46,17 @@
 -type acl2() :: #acl_v2{}.
 -type acl() :: acl1() | acl2().
 
+-record(access_v1, {
+          method :: atom(), % PUT / GET / POST / ....
+          target :: atom(), % object | object_acl | ....
+          id :: binary(),
+          bucket :: binary(),
+          key = <<>> :: binary(),
+          req %:: #wm_reqdata{} % request of webmachine
+         }).
+
+-type access() :: #access_v1{}.
+
 -define(ACL, #acl_v2).
 -define(USER_BUCKET, <<"moss.users">>).
 -define(BUCKETS_BUCKET, <<"moss.buckets">>).
@@ -52,3 +64,4 @@
 -define(MOSS_USER, #rcs_user_v2).
 -define(RCS_USER, #rcs_user_v2).
 -define(MD_ACL, <<"X-Moss-Acl">>).
+-define(MD_POLICY, <<"X-Rcs-Policy">>).
