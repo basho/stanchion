@@ -265,6 +265,9 @@ pow(Base, Power, Acc) ->
     end.
 
 %% @doc Store a new bucket in Riak
+%% though whole metadata itself is a dict, a metadata of ?MD_USERMETA is
+%% proplists of [{?MD_ACL|?MD_POLICY, ACL::binary()|PolicyBin::binary()}].
+%% should preserve other metadata. ACL and Policy can be overwritten.
 -spec put_bucket(term(), binary(), {acl, acl()}|{policy, binary()}, pid())
                 -> ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
@@ -281,31 +284,21 @@ put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
                  throw(MsgData) % @TODO: data broken; handle this
            end,
     MetaVals = dict:fetch(?MD_USERMETA, MD),
-    MetaData = make_new_metadata(MetaVals, AclOrPolicy),
+    UserMetaData = make_new_user_metadata(MetaVals, AclOrPolicy),
+    MetaData = make_new_metadata(MD, UserMetaData),
     UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
     riakc_pb_socket:put(RiakPid, UpdBucketObj).
 
-make_new_metadata(MetaVals, {acl, Acl})->
-    UserMetaList = [{?MD_ACL, term_to_binary(Acl)}],
-    MetaList = case proplists:get_value(?MD_POLICY, MetaVals) of
-                   undefined    -> UserMetaList;
-                   PolicyBinary -> [{?MD_POLICY, PolicyBinary}|UserMetaList]
-               end,
-    dict:from_list([{?MD_USERMETA, MetaList}]);
-make_new_metadata(MetaVals, {policy, Policy}) ->
-    UserMetaList = [{?MD_POLICY, term_to_binary(Policy)}],
-    MetaList = case proplists:get_value(?MD_ACL, MetaVals) of
-                   undefined -> UserMetaList; % is there no case of coming this line?
-                   AclBinary -> [{?MD_ACL, AclBinary}|UserMetaList]
-               end,
-    dict:from_list([{?MD_USERMETA, MetaList}]);
-make_new_metadata(MetaVals, delete_policy) ->
-    UserMetaList = [],
-    MetaList = case proplists:get_value(?MD_ACL, MetaVals) of
-                   undefined -> UserMetaList;
-                   AclBinary -> [{?MD_ACL, AclBinary}|UserMetaList]
-               end,
-    dict:from_list([{?MD_USERMETA, MetaList}]).
+make_new_metadata(MD, UserMeta) ->
+    dict:store(?MD_USERMETA, UserMeta, dict:erase(?MD_USERMETA, MD)).
+
+make_new_user_metadata(MetaVals, {acl, Acl})->
+    [{?MD_ACL, term_to_binary(Acl)} | proplists:delete(?MD_ACL, MetaVals)];
+make_new_user_metadata(MetaVals, {policy, Policy}) ->
+    [{?MD_POLICY, term_to_binary(Policy)} |
+     proplists:delete(?MD_POLICY, MetaVals)];
+make_new_user_metadata(MetaVals, delete_policy) ->
+    proplists:delete(?MD_POLICY, MetaVals).
 
 %% @doc Store an object in Riak
 -spec put_object(binary(), binary(), binary(), [term()]) -> ok.
