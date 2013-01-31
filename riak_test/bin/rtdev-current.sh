@@ -1,11 +1,16 @@
+#!/bin/bash
+
+: ${RTSTANCHION_DEST_DIR:="$HOME/rt/stanchion"}
+
 cwd=$(pwd)
-cd /tmp/rtstanchion
+cd $RTSTANCHION_DEST_DIR
 git reset HEAD --hard
 git clean -fd
-rm -rf /tmp/rtstanchion/current
-mkdir /tmp/rtstanchion/current
+rm -rf $RTSTANCHION_DEST_DIR/current
+mkdir $RTSTANCHION_DEST_DIR/current
 cd $cwd
-cp -a dev /tmp/rtstanchion/current
-cd /tmp/rtstanchion
+cp -a dev $RTSTANCHION_DEST_DIR/current
+cd $RTSTANCHION_DEST_DIR
 git add .
 git commit -a -m "riak_test init" --amend
+
