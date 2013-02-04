@@ -70,14 +70,25 @@ build()
     cd ..
 }
 
+download()
+{
+  URI=$1
+  FILENAME=`echo $URI | awk -F/ '{ print $7 }'`
+  if [ ! -f $FILENAME ]; then
+    s3cmd get --continue $URI
+  fi
+}
+
+
 checkbuild $R14B04
 checkbuild $R15B01
 
 # Download Riak CS and Stanchion release source, need s3cmd configured
 # You must have the proper credentials configured in ~/.s3cfg for this to work.
-s3cmd get --continue s3://builds.basho.com/stanchion/1.2/1.2.2/stanchion-1.2.2.tar.gz
-s3cmd get --continue s3://builds.basho.com/stanchion/1.1/1.1.0/stanchion-1.1.0.tar.gz
-s3cmd get --continue s3://builds.basho.com/stanchion/1.0/1.0.1/stanchion-1.0.1.tar.gz
+download s3://builds.basho.com/stanchion/1.2/1.2.2/stanchion-1.2.2.tar.gz
+download s3://builds.basho.com/stanchion/1.1/1.1.0/stanchion-1.1.0.tar.gz
+download s3://builds.basho.com/stanchion/1.0/1.0.1/stanchion-1.0.1.tar.gz
+
 
 tar -xzf stanchion-1.0.1.tar.gz
 build "stanchion-1.0.1" $R14B04
