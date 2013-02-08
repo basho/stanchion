@@ -109,7 +109,7 @@ package.src: deps
 	mkdir -p package
 	rm -rf package/$(PKG_ID)
 	git archive --format=tar --prefix=$(PKG_ID)/ $(PKG_REVISION)| (cd package && tar -xf -)
-	make -C package/$(PKG_ID) deps
+	${MAKE} -C package/$(PKG_ID) deps
 	for dep in package/$(PKG_ID)/deps/*; do \
              echo "Processing dep: $${dep}"; \
              mkdir -p $${dep}/priv; \
@@ -122,7 +122,7 @@ dist: package.src
 	cp package/$(PKG_ID).tar.gz .
 
 package: package.src
-	make -C package -f $(PKG_ID)/deps/node_package/Makefile
+	${MAKE} -C package -f $(PKG_ID)/deps/node_package/Makefile
 
 pkgclean: distclean
 	rm -rf package
