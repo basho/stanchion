@@ -192,7 +192,7 @@ get_manifests(RiakcPid, Bucket, Key) ->
             Resolved = stanchion_manifest_resolution:resolve(Upgraded),
 
             %% prune old scheduled_delete manifests
-            
+
             %% commented out because we don't have the
             %% riak_cs_gc module
             %% Pruned = stanchion_manifest_utils:prune(Resolved),
@@ -271,6 +271,7 @@ pow(Base, Power, Acc) ->
 -spec put_bucket(term(), binary(), {acl, acl()}|{policy, binary()}, pid())
                 -> ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
+    PutOptions = [{w, all}, {pw, all}],
     UpdBucketObj0 = riakc_obj:update_value(BucketObj, OwnerId),
     MD = case riakc_obj:get_metadatas(UpdBucketObj0) of
              [] -> % create
@@ -287,7 +288,7 @@ put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
     UserMetaData = make_new_user_metadata(MetaVals, AclOrPolicy),
     MetaData = make_new_metadata(MD, UserMetaData),
     UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
-    riakc_pb_socket:put(RiakPid, UpdBucketObj).
+    riakc_pb_socket:put(RiakPid, UpdBucketObj, PutOptions).
 
 make_new_metadata(MD, UserMeta) ->
     dict:store(?MD_USERMETA, UserMeta, dict:erase(?MD_USERMETA, MD)).
@@ -435,7 +436,8 @@ bucket_empty(Bucket, RiakPid) ->
 %% for creation or deletion by the inquiring user.
 -spec bucket_available(binary(), fun(), bucket_op(), pid()) -> {true, term()} | {false, atom()}.
 bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
-    case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket) of
+    GetOptions = [{pr, all}],
+    case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket, GetOptions) of
         {ok, BucketObj} ->
             OwnerId = riakc_obj:get_value(BucketObj),
             if
