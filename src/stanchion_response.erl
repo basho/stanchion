@@ -28,8 +28,11 @@ error_message(entity_too_large) ->
 error_message(no_such_bucket) ->
     "The specified bucket does not exist.";
 error_message({riak_connect_failed, Reason}) ->
-    io_lib:format("Unable to establish connection to Riak. Reason: ~p", [Reason]).
-
+    io_lib:format("Unable to establish connection to Riak. Reason: ~p", [Reason]);
+error_message({unsatisfied_constraint, Constraint}) ->
+    io_lib:format("Unable to complete operation due to ~s constraint violation.", [Constraint]);
+error_message(unknown_error) ->
+    "Unexpected error occurred. Please see the stanchion error log for more details.".
 
 error_code(invalid_access_key_id) -> "InvalidAccessKeyId";
 error_code(access_denied) -> "AccessDenied";
@@ -38,8 +41,9 @@ error_code(bucket_already_exists) -> "BucketAlreadyExists";
 error_code(user_already_exists) -> "UserAlreadyExists";
 error_code(entity_too_large) -> "EntityTooLarge";
 error_code(no_such_bucket) -> "NoSuchBucket";
-error_code({riak_connect_failed, _}) -> "RiakConnectFailed".
-
+error_code({riak_connect_failed, _}) -> "RiakConnectFailed";
+error_code({unsatisfied_constraint, _}) -> "UnsatisfiedConstraint";
+error_code(unknown_error) -> "UnexpectedError".
 
 status_code(access_denied) ->  403;
 status_code(bucket_not_empty) ->  409;
@@ -48,12 +52,17 @@ status_code(user_already_exists) -> 409;
 status_code(entity_too_large) -> 400;
 status_code(invalid_access_key_id) -> 403;
 status_code(no_such_bucket) -> 404;
-status_code({riak_connect_failed, _}) -> 503.
-
+status_code({riak_connect_failed, _}) -> 503;
+status_code({unsatisfied_constraint, _}) -> 500;
+status_code(unknown_error) -> 500.
 
 respond(StatusCode, Body, ReqData, Ctx) ->
     {{halt, StatusCode}, wrq:set_resp_body(Body, ReqData), Ctx}.
 
+api_error(Error, ReqData, Ctx) when is_binary(Error) ->
+    api_error(binary_to_list(Error), ReqData, Ctx);
+api_error(Error, ReqData, Ctx) when is_list(Error) ->
+    api_error(error_string_to_atom(Error), ReqData, Ctx);
 api_error(Error, ReqData, Ctx) ->
     error_response(status_code(Error), error_code(Error), error_message(Error),
                    ReqData, Ctx).
@@ -78,3 +87,14 @@ list_buckets_response(BucketData, RD, Ctx) ->
 export_xml(XmlDoc) ->
     unicode:characters_to_binary(
       xmerl:export_simple(XmlDoc, xmerl_xml, [{prolog, ?xml_prolog}])).
+
+error_string_to_atom("{r_val_unsatisfied," ++ _) ->
+    {unsatisfied_constraint, "r"};
+error_string_to_atom("{w_val_unsatisfied," ++ _) ->
+    {unsatisfied_constraint, "w"};
+error_string_to_atom("{pr_val_unsatisfied," ++ _) ->
+    {unsatisfied_constraint, "pr"};
+error_string_to_atom("{pw_val_unsatisfied," ++ _) ->
+    {unsatisfied_constraint, "pw"};
+error_string_to_atom(_) ->
+    unknown_error.
