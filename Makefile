@@ -1,8 +1,8 @@
 REPO		?= stanchion
-PKG_NAME        ?= stanchion
+
 PKG_REVISION    ?= $(shell git describe --tags)
 PKG_VERSION	?= $(shell git describe --tags | tr - .)
-PKG_ID           = $(PKG_NAME)-$(PKG_VERSION)
+PKG_ID           = stanchion-$(PKG_VERSION)
 PKG_BUILD        = 1
 BASE_DIR         = $(shell pwd)
 ERLANG_BIN       = $(shell dirname $(shell which erl))
@@ -103,7 +103,7 @@ cleanplt:
 ## Packaging targets
 ##
 .PHONY: package
-export PKG_NAME PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE
+export PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE
 
 package.src: deps
 	mkdir -p package
