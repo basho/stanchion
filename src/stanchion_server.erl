@@ -25,6 +25,7 @@
          create_bucket/1,
          create_user/1,
          delete_bucket/2,
+         set_bucket_acl/2,
          stop/1]).
 
 %% gen_server callbacks
@@ -67,6 +68,12 @@ create_user(UserData) ->
 delete_bucket(Bucket, UserId) ->
     gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}, infinity).
 
+
+%% @doc Set the ACL for a bucket
+-spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
+set_bucket_acl(Bucket, FieldList) ->
+    gen_server:call(?MODULE, {set_acl, Bucket, FieldList}, infinity).
+
 stop(Pid) ->
     gen_server:cast(Pid, stop).
 
@@ -98,6 +105,11 @@ handle_call({delete_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:delete_bucket(Bucket, OwnerId),
+    {reply, Result, State};
+handle_call({set_acl, Bucket, FieldList},
+            _From,
+            State=#state{}) ->
+    Result = stanchion_utils:set_bucket_acl(Bucket, FieldList),
     {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.

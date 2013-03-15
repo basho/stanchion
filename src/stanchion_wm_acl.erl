@@ -78,7 +78,7 @@ accept_body(RD, Ctx) ->
     %% @TODO Handle json decoding exceptions
     ParsedBody = mochijson2:decode(Body),
     FieldList = stanchion_wm_utils:json_to_proplist(ParsedBody),
-    case stanchion_utils:set_bucket_acl(Bucket,
+    case stanchion_server:set_bucket_acl(Bucket,
                                         FieldList) of
         ok ->
             {true, RD, Ctx};
