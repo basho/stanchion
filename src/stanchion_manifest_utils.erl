@@ -1,8 +1,22 @@
-%% -------------------------------------------------------------------
+%% ---------------------------------------------------------------------
 %%
-%% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
+%% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
 %%
-%% -------------------------------------------------------------------
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+%% ---------------------------------------------------------------------
 
 %% @doc Module for choosing and manipulating lists (well, orddict) of manifests
 
@@ -247,67 +261,3 @@ seconds_diff(T2, T1) ->
     TimeDiffMicrosends = timer:now_diff(T2, T1),
     SecondsTime = TimeDiffMicrosends / (1000 * 1000),
     erlang:trunc(SecondsTime).
-
-%% ===================================================================
-%% EUnit tests
-%% ===================================================================
--ifdef(TEST).
-
-new_mani_helper() ->
-    riak_cs_lfs_utils:new_manifest(<<"bucket">>,
-        <<"key">>,
-        <<"uuid">>,
-        100, %% content-length
-        <<"ctype">>,
-        undefined, %% md5
-        orddict:new(),
-        10,
-        undefined).
-
-manifest_test_() ->
-    {setup,
-        fun setup/0,
-        fun cleanup/1,
-        [fun wrong_state_for_pruning/0,
-         fun wrong_state_for_pruning_2/0,
-         fun does_need_pruning/0,
-         fun not_old_enough_for_pruning/0]
-    }.
-
-setup() ->
-    ok.
-
-cleanup(_Ctx) ->
-    ok.
-
-wrong_state_for_pruning() ->
-    Mani = new_mani_helper(),
-    Mani2 = Mani?MANIFEST{state=active},
-    ?assert(not needs_pruning(Mani2, erlang:now())).
-
-wrong_state_for_pruning_2() ->
-    Mani = new_mani_helper(),
-    Mani2 = Mani?MANIFEST{state=pending_delete},
-    ?assert(not needs_pruning(Mani2, erlang:now())).
-
-does_need_pruning() ->
-    application:set_env(riak_moss, leeway_seconds, 1),
-    %% 1000000 second diff
-    ScheduledDeleteTime = {1333,985708,445136},
-    Now = {1334,985708,445136},
-    Mani = new_mani_helper(),
-    Mani2 = Mani?MANIFEST{state=scheduled_delete,
-                                scheduled_delete_time=ScheduledDeleteTime},
-    ?assert(needs_pruning(Mani2, Now)).
-
-not_old_enough_for_pruning() ->
-    application:set_env(riak_moss, leeway_seconds, 2),
-    %$ 1 second diff
-    ScheduledDeleteTime = {1333,985708,445136},
-    Now = {1333,985709,445136},
-    Mani = new_mani_helper(),
-    Mani2 = Mani?MANIFEST{state=scheduled_delete,
-                                scheduled_delete_time=ScheduledDeleteTime},
-    ?assert(not needs_pruning(Mani2, Now)).
-
--endif.
