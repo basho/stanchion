@@ -1,8 +1,22 @@
-%% -------------------------------------------------------------------
+%% ---------------------------------------------------------------------
 %%
-%% Copyright (c) 2007-2012 Basho Technologies, Inc.  All Rights Reserved.
+%% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
 %%
-%% -------------------------------------------------------------------
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+%% ---------------------------------------------------------------------
 
 %% @doc Module to process bucket creation requests.
 
@@ -25,6 +39,7 @@
          create_bucket/1,
          create_user/1,
          delete_bucket/2,
+         set_bucket_acl/2,
          stop/1]).
 
 %% gen_server callbacks
@@ -67,6 +82,12 @@ create_user(UserData) ->
 delete_bucket(Bucket, UserId) ->
     gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}, infinity).
 
+
+%% @doc Set the ACL for a bucket
+-spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
+set_bucket_acl(Bucket, FieldList) ->
+    gen_server:call(?MODULE, {set_acl, Bucket, FieldList}, infinity).
+
 stop(Pid) ->
     gen_server:cast(Pid, stop).
 
@@ -98,6 +119,11 @@ handle_call({delete_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:delete_bucket(Bucket, OwnerId),
+    {reply, Result, State};
+handle_call({set_acl, Bucket, FieldList},
+            _From,
+            State=#state{}) ->
+    Result = stanchion_utils:set_bucket_acl(Bucket, FieldList),
     {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
