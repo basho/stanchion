@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# bail out if things go south
+set -e
+
 : ${RTSTANCHION_DEST_DIR:="$HOME/rt/stanchion"}
 
 cwd=$(pwd)
