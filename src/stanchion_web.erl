@@ -31,9 +31,9 @@ dispatch_table() ->
             undefined ->         false
         end,
     [
-     {["buckets"], stanchion_wm_buckets, [{auth_bypass, AuthBypass}]},
-     {["buckets", bucket, "acl"], stanchion_wm_acl, [{auth_bypass, AuthBypass}]},
-     {["buckets", bucket, "policy"], stanchion_wm_policy, [{auth_bypass, AuthBypass}]},
-     {["buckets", bucket], stanchion_wm_bucket, [{auth_bypass, AuthBypass}]},
-     {["users"], stanchion_wm_users, [{auth_bypass, AuthBypass}]}
+     {["stanchion", "buckets"], stanchion_wm_buckets, [{auth_bypass, AuthBypass}]},
+     {["stanchion", "buckets", bucket, "acl"], stanchion_wm_acl, [{auth_bypass, AuthBypass}]},
+     {["stanchion", "buckets", bucket, "policy"], stanchion_wm_policy, [{auth_bypass, AuthBypass}]},
+     {["stanchion", "buckets", bucket], stanchion_wm_bucket, [{auth_bypass, AuthBypass}]},
+     {["stanchion", "users"], stanchion_wm_users, [{auth_bypass, AuthBypass}]}
     ].
