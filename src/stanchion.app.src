@@ -10,8 +10,6 @@
                   stdlib,
                   inets,
                   crypto,
-                  mochiweb,
-                  webmachine,
                   lager
                  ]},
   {mod, { stanchion_app, []}},
