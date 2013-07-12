@@ -51,6 +51,7 @@
           acl :: acl()}).
 
 -type moss_bucket() :: #moss_bucket_v1{}.
+-type cs_bucket() :: #moss_bucket_v1{}.
 
 -type acl_perm() :: 'READ' | 'WRITE' | 'READ_ACP' | 'WRITE_ACP' | 'FULL_CONTROL'.
 -type acl_perms() :: [acl_perm()].
@@ -78,6 +79,7 @@
 -type access() :: #access_v1{}.
 
 -define(ACL, #acl_v2).
+-define(RCS_BUCKET, #moss_bucket_v1).
 -define(USER_BUCKET, <<"moss.users">>).
 -define(BUCKETS_BUCKET, <<"moss.buckets">>).
 -define(FREE_BUCKET_MARKER, <<"0">>).
