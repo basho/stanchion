@@ -40,7 +40,8 @@
          create_user/1,
          delete_bucket/2,
          set_bucket_acl/2,
-         stop/1]).
+         stop/1,
+         update_user/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -91,6 +92,14 @@ set_bucket_acl(Bucket, FieldList) ->
 stop(Pid) ->
     gen_server:cast(Pid, stop).
 
+%% @doc Attempt to update a bucket
+-spec update_user(string(), [{term(), term()}]) ->
+                         ok |
+                         {error, term()} |
+                         {error, stanchion_utils:riak_connect_failed()}.
+update_user(KeyId, UserData) ->
+    gen_server:call(?MODULE, {update_user, KeyId, UserData}, infinity).
+
 %% ===================================================================
 %% gen_server callbacks
 %% ===================================================================
@@ -114,6 +123,11 @@ handle_call({create_user, UserData},
             _From,
             State=#state{}) ->
     Result = stanchion_utils:create_user(UserData),
+    {reply, Result, State};
+handle_call({update_user, UserData},
+            _From,
+            State=#state{}) ->
+    Result = stanchion_utils:update_user(UserData),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,
