@@ -414,20 +414,26 @@ to_bucket_name(Type, Bucket) ->
     <<Prefix/binary, BucketHash/binary>>.
 
 %% @doc Attmpt to create a new user
--spec update_user(string(), [{term(), term()}]) -> ok | {error, riak_connect_failed() | term()}.
+-spec update_user(string(), [{term(), term()}]) ->
+                         ok | {error, riak_connect_failed() | term()}.
 update_user(KeyId, UserFields) ->
+
     case riak_connection() of
         {ok, RiakPid} ->
+
             Res =
-            case get_user(KeyId, RiakPid) of
-                {ok, {User, UserObj}} ->
-                    save_user(
-                            update_user_record(UserFields, User),
-                            UserObj,
-                            RiakPid);
-                {error, _}=Error ->
-                    Error
-            end,
+                case get_user(KeyId, RiakPid) of
+                    {ok, {User, UserObj}} ->
+
+                        {UpdUser, EmailUpdated} =
+                            update_user_record(UserFields, User, false),
+                        save_user(EmailUpdated,
+                                  UpdUser,
+                                  UserObj,
+                                  RiakPid);
+                    {error, _}=Error ->
+                        Error
+                end,
             close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->
@@ -667,9 +673,10 @@ save_user(User, RiakPid) ->
     riakc_pb_socket:put(RiakPid, UserObj).
 
 %% @doc Save information about a Riak CS user
--spec save_user(rcs_user(), riakc_obj:riakc_obj(), pid()) ->
+-spec save_user(boolean(), rcs_user(), riakc_obj:riakc_obj(), pid()) ->
+
                        ok | {error, term()}.
-save_user(User=?RCS_USER{email=Email}, UserObj, RiakPid) ->
+save_user(true, User=?RCS_USER{email=Email}, UserObj, RiakPid) ->
     case email_available(Email, RiakPid) of
         true ->
             Indexes = [{?EMAIL_INDEX, Email},
@@ -677,12 +684,21 @@ save_user(User=?RCS_USER{email=Email}, UserObj, RiakPid) ->
             MD = dict:store(?MD_INDEX, Indexes, dict:new()),
             UpdUserObj = riakc_obj:update_metadata(
                            riakc_obj:update_value(UserObj,
-                                                  riak_cs_utils:encode_term(User)),
+                                                  term_to_binary(User)),
                            MD),
             riakc_pb_socket:put(RiakPid, UpdUserObj);
         {false, Reason} ->
             {error, Reason}
-    end.
+    end;
+save_user(false, User, UserObj, RiakPid) ->
+    Indexes = [{?EMAIL_INDEX, User?RCS_USER.email},
+               {?ID_INDEX, User?RCS_USER.canonical_id}],
+    MD = dict:store(?MD_INDEX, Indexes, dict:new()),
+    UpdUserObj = riakc_obj:update_metadata(
+                   riakc_obj:update_value(UserObj,
+                                          term_to_binary(User)),
+                   MD),
+    riakc_pb_socket:put(RiakPid, UpdUserObj).
 
 %% @doc Retrieve a Riak CS user's information based on their id string.
 -spec get_user('undefined' | list(), pid()) -> {ok, {rcs_user(), riakc_obj:riakc_obj()}} | {error, term()}.
@@ -706,7 +722,7 @@ get_user(KeyId, RiakPid) ->
                                  Value /= <<>>  % tombstone
                              ],
                     User = hd(Values),
-                    Buckets = resolve_buckets(User, [], KeepDeletedBuckets),
+                    Buckets = resolve_buckets(Values, [], KeepDeletedBuckets),
                     {ok, {User?RCS_USER{buckets=Buckets}, Obj}}
             end;
         Error ->
@@ -809,28 +825,34 @@ bucket_sorter(?RCS_BUCKET{name=Bucket1},
               ?RCS_BUCKET{name=Bucket2}) ->
     Bucket1 =< Bucket2.
 
-update_user_record([], User) ->
-    User;
-update_user_record([{<<"name">>, Name} | RestUserFields], User) ->
+update_user_record([], User, EmailUpdated) ->
+    {User, EmailUpdated};
+update_user_record([{<<"name">>, Name} | RestUserFields], User, EmailUpdated) ->
     update_user_record(RestUserFields,
-                       User?RCS_USER{name=binary_to_list(Name)});
-update_user_record([{<<"email">>, Email} | RestUserFields], User) ->
+                       User?RCS_USER{name=binary_to_list(Name)}, EmailUpdated);
+update_user_record([{<<"email">>, Email} | RestUserFields],
+                   User, _) ->
+    UpdEmail = binary_to_list(Email),
+    EmailUpdated =  not (User?RCS_USER.email =:= UpdEmail),
     update_user_record(RestUserFields,
-                       User?RCS_USER{email=binary_to_list(Email)});
-update_user_record([{<<"display_name">>, Name} | RestUserFields], User) ->
+                       User?RCS_USER{email=UpdEmail}, EmailUpdated);
+update_user_record([{<<"display_name">>, Name} | RestUserFields], User, EmailUpdated) ->
     update_user_record(RestUserFields,
-                       User?RCS_USER{display_name=binary_to_list(Name)});
-update_user_record([{<<"key_secret">>, KeySecret} | RestUserFields], User) ->
+                       User?RCS_USER{display_name=binary_to_list(Name)}, EmailUpdated);
+update_user_record([{<<"key_secret">>, KeySecret} | RestUserFields], User, EmailUpdated) ->
     update_user_record(RestUserFields,
-                       User?RCS_USER{key_secret=binary_to_list(KeySecret)});
-update_user_record([{<<"status">>, Status} | RestUserFields], User) ->
+                       User?RCS_USER{key_secret=binary_to_list(KeySecret)}, EmailUpdated);
+update_user_record([{<<"status">>, Status} | RestUserFields], User, EmailUpdated) ->
     case Status of
         <<"enabled">> ->
             update_user_record(RestUserFields,
-                               User?RCS_USER{status=enabled});
+                               User?RCS_USER{status=enabled}, EmailUpdated);
         <<"disabled">> ->
             update_user_record(RestUserFields,
-                               User?RCS_USER{status=disabled});
+                               User?RCS_USER{status=disabled}, EmailUpdated);
         _ ->
-            update_user_record(RestUserFields, User)
-    end.
+            update_user_record(RestUserFields, User, EmailUpdated)
+    end;
+update_user_record([_ | RestUserFields], User, EmailUpdated) ->
+
+    update_user_record(RestUserFields, User, EmailUpdated).

@@ -124,10 +124,10 @@ handle_call({create_user, UserData},
             State=#state{}) ->
     Result = stanchion_utils:create_user(UserData),
     {reply, Result, State};
-handle_call({update_user, UserData},
+handle_call({update_user, KeyId, UserData},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:update_user(UserData),
+    Result = stanchion_utils:update_user(KeyId, UserData),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,
