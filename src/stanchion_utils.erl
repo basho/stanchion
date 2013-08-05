@@ -52,6 +52,7 @@
          update_user/2]).
 
 -include("stanchion.hrl").
+-include_lib("riakc/include/riakc.hrl").
 -include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
 
 -define(EMAIL_INDEX, <<"email_bin">>).
@@ -609,8 +610,8 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% assurance that a particular email address is available.
 -spec email_available(binary(), pid()) -> true | {false, term()}.
 email_available(Email, RiakPid) ->
-    case riakc_pb_socket:get_index(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
-        {ok, []} ->
+    case riakc_pb_socket:get_index_eq(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
+        {ok, ?INDEX_RESULTS{keys=[]}} ->
             true;
         {ok, _} ->
             {false, user_already_exists};
