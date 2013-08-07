@@ -1,3 +1,6 @@
+* Stanchion 1.4.0 Release Notes
+** Additions
+- Add ability to update a user record through stanchion
 * Stanchion 1.3.1 Release Notes
 ** Bugs Fixed
 - Fix for issue with init script stop.
