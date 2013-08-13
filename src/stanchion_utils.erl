@@ -48,9 +48,11 @@
          set_bucket_policy/2,
          delete_bucket_policy/2,
          timestamp/1,
-         to_bucket_name/2]).
+         to_bucket_name/2,
+         update_user/2]).
 
 -include("stanchion.hrl").
+-include_lib("riakc/include/riakc.hrl").
 -include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
 
 -define(EMAIL_INDEX, <<"email_bin">>).
@@ -104,7 +106,7 @@ create_user(UserFields) ->
     Email = proplists:get_value(<<"email">>, UserFields, <<>>),
     KeyId = binary_to_list(proplists:get_value(<<"key_id">>, UserFields, <<>>)),
     KeySecret = binary_to_list(proplists:get_value(<<"key_secret">>, UserFields, <<>>)),
-    CanonicalId = binary_to_list(proplists:get_value(<<"canonical_id">>, UserFields, <<>>)),
+    CanonicalId = binary_to_list(proplists:get_value(<<"id">>, UserFields, <<>>)),
     case riak_connection() of
         {ok, RiakPid} ->
             case email_available(Email, RiakPid) of
@@ -412,6 +414,33 @@ to_bucket_name(Type, Bucket) ->
     BucketHash = crypto:md5(Bucket),
     <<Prefix/binary, BucketHash/binary>>.
 
+%% @doc Attmpt to create a new user
+-spec update_user(string(), [{term(), term()}]) ->
+                         ok | {error, riak_connect_failed() | term()}.
+update_user(KeyId, UserFields) ->
+
+    case riak_connection() of
+        {ok, RiakPid} ->
+
+            Res =
+                case get_user(KeyId, RiakPid) of
+                    {ok, {User, UserObj}} ->
+
+                        {UpdUser, EmailUpdated} =
+                            update_user_record(UserFields, User, false),
+                        save_user(EmailUpdated,
+                                  UpdUser,
+                                  UserObj,
+                                  RiakPid);
+                    {error, _}=Error ->
+                        Error
+                end,
+            close_riak_connection(RiakPid),
+            Res;
+        {error, _} = Else ->
+            Else
+    end.
+
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
@@ -581,8 +610,8 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% assurance that a particular email address is available.
 -spec email_available(binary(), pid()) -> true | {false, term()}.
 email_available(Email, RiakPid) ->
-    case riakc_pb_socket:get_index(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
-        {ok, []} ->
+    case riakc_pb_socket:get_index_eq(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
+        {ok, ?INDEX_RESULTS{keys=[]}} ->
             true;
         {ok, _} ->
             {false, user_already_exists};
@@ -643,3 +672,188 @@ save_user(User, RiakPid) ->
     UserObj = riakc_obj:update_metadata(Obj, Meta),
     %% @TODO Error handling
     riakc_pb_socket:put(RiakPid, UserObj).
+
+%% @doc Save information about a Riak CS user
+-spec save_user(boolean(), rcs_user(), riakc_obj:riakc_obj(), pid()) ->
+
+                       ok | {error, term()}.
+save_user(true, User=?RCS_USER{email=Email}, UserObj, RiakPid) ->
+    case email_available(Email, RiakPid) of
+        true ->
+            Indexes = [{?EMAIL_INDEX, Email},
+                       {?ID_INDEX, User?RCS_USER.canonical_id}],
+            MD = dict:store(?MD_INDEX, Indexes, dict:new()),
+            UpdUserObj = riakc_obj:update_metadata(
+                           riakc_obj:update_value(UserObj,
+                                                  term_to_binary(User)),
+                           MD),
+            riakc_pb_socket:put(RiakPid, UpdUserObj);
+        {false, Reason} ->
+            {error, Reason}
+    end;
+save_user(false, User, UserObj, RiakPid) ->
+    Indexes = [{?EMAIL_INDEX, User?RCS_USER.email},
+               {?ID_INDEX, User?RCS_USER.canonical_id}],
+    MD = dict:store(?MD_INDEX, Indexes, dict:new()),
+    UpdUserObj = riakc_obj:update_metadata(
+                   riakc_obj:update_value(UserObj,
+                                          term_to_binary(User)),
+                   MD),
+    riakc_pb_socket:put(RiakPid, UpdUserObj).
+
+%% @doc Retrieve a Riak CS user's information based on their id string.
+-spec get_user('undefined' | list(), pid()) -> {ok, {rcs_user(), riakc_obj:riakc_obj()}} | {error, term()}.
+get_user(undefined, _RiakPid) ->
+    {error, no_user_key};
+get_user(KeyId, RiakPid) ->
+    %% Check for and resolve siblings to get a
+    %% coherent view of the bucket ownership.
+    BinKey = list_to_binary(KeyId),
+    case fetch_user(BinKey, RiakPid) of
+        {ok, {Obj, KeepDeletedBuckets}} ->
+            case riakc_obj:value_count(Obj) of
+                1 ->
+                    User = binary_to_term(riakc_obj:get_value(Obj)),
+                    {ok, {User, Obj}};
+                0 ->
+                    {error, no_value};
+                _ ->
+                    Values = [binary_to_term(Value) ||
+                                 Value <- riakc_obj:get_values(Obj),
+                                 Value /= <<>>  % tombstone
+                             ],
+                    User = hd(Values),
+                    Buckets = resolve_buckets(Values, [], KeepDeletedBuckets),
+                    {ok, {User?RCS_USER{buckets=Buckets}, Obj}}
+            end;
+        Error ->
+            Error
+    end.
+
+%% @doc Perform an initial read attempt with R=PR=N.
+%% If the initial read fails retry using
+%% R=quorum and PR=1, but indicate that bucket deletion
+%% indicators should not be cleaned up.
+-spec fetch_user(binary(), pid()) ->
+                        {ok, {term(), boolean()}} | {error, term()}.
+fetch_user(Key, RiakPid) ->
+    StrongOptions = [{r, all}, {pr, all}, {notfound_ok, false}],
+    case riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, StrongOptions) of
+        {ok, Obj} ->
+            {ok, {Obj, true}};
+        {error, _} ->
+            WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+            case riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions) of
+                {ok, Obj} ->
+                    {ok, {Obj, false}};
+                {error, Reason} ->
+                    {error, Reason}
+            end
+    end.
+
+%% @doc Resolve the set of buckets for a user when
+%% siblings are encountered on a read of a user record.
+-spec resolve_buckets([rcs_user()], [cs_bucket()], boolean()) ->
+                             [cs_bucket()].
+resolve_buckets([], Buckets, true) ->
+    lists:sort(fun bucket_sorter/2, Buckets);
+resolve_buckets([], Buckets, false) ->
+    lists:sort(fun bucket_sorter/2, [Bucket || Bucket <- Buckets, not cleanup_bucket(Bucket)]);
+resolve_buckets([HeadUserRec | RestUserRecs], Buckets, _KeepDeleted) ->
+    HeadBuckets = HeadUserRec?RCS_USER.buckets,
+    UpdBuckets = lists:foldl(fun bucket_resolver/2, Buckets, HeadBuckets),
+    resolve_buckets(RestUserRecs, UpdBuckets, _KeepDeleted).
+
+%% @doc Check for and resolve any conflict between
+%% a bucket record from a user record sibling and
+%% a list of resolved bucket records.
+-spec bucket_resolver(cs_bucket(), [cs_bucket()]) -> [cs_bucket()].
+bucket_resolver(Bucket, ResolvedBuckets) ->
+    case lists:member(Bucket, ResolvedBuckets) of
+        true ->
+            ResolvedBuckets;
+        false ->
+            case [RB || RB <- ResolvedBuckets,
+                        RB?RCS_BUCKET.name =:=
+                            Bucket?RCS_BUCKET.name] of
+                [] ->
+                    [Bucket | ResolvedBuckets];
+                [ExistingBucket] ->
+                    case keep_existing_bucket(ExistingBucket,
+                                              Bucket) of
+                        true ->
+                            ResolvedBuckets;
+                        false ->
+                            [Bucket | lists:delete(ExistingBucket,
+                                                   ResolvedBuckets)]
+                    end
+            end
+    end.
+
+%% @doc Determine if an existing bucket from the resolution list
+%% should be kept or replaced when a conflict occurs.
+-spec keep_existing_bucket(cs_bucket(), cs_bucket()) -> boolean().
+keep_existing_bucket(?RCS_BUCKET{last_action=LastAction1,
+                                  modification_time=ModTime1},
+                     ?RCS_BUCKET{last_action=LastAction2,
+                                  modification_time=ModTime2}) ->
+    if
+        LastAction1 == LastAction2
+        andalso
+        ModTime1 =< ModTime2 ->
+            true;
+        LastAction1 == LastAction2 ->
+            false;
+        ModTime1 > ModTime2 ->
+            true;
+        true ->
+            false
+    end.
+
+%% @doc Return true if the last action for the bucket
+%% is deleted and the action occurred over 24 hours ago.
+-spec cleanup_bucket(cs_bucket()) -> boolean().
+cleanup_bucket(?RCS_BUCKET{last_action=created}) ->
+    false;
+cleanup_bucket(?RCS_BUCKET{last_action=deleted,
+                            modification_time=ModTime}) ->
+    timer:now_diff(os:timestamp(), ModTime) > 86400.
+
+%% @doc Ordering function for sorting a list of bucket records
+%% according to bucket name.
+-spec bucket_sorter(cs_bucket(), cs_bucket()) -> boolean().
+bucket_sorter(?RCS_BUCKET{name=Bucket1},
+              ?RCS_BUCKET{name=Bucket2}) ->
+    Bucket1 =< Bucket2.
+
+update_user_record([], User, EmailUpdated) ->
+    {User, EmailUpdated};
+update_user_record([{<<"name">>, Name} | RestUserFields], User, EmailUpdated) ->
+    update_user_record(RestUserFields,
+                       User?RCS_USER{name=binary_to_list(Name)}, EmailUpdated);
+update_user_record([{<<"email">>, Email} | RestUserFields],
+                   User, _) ->
+    UpdEmail = binary_to_list(Email),
+    EmailUpdated =  not (User?RCS_USER.email =:= UpdEmail),
+    update_user_record(RestUserFields,
+                       User?RCS_USER{email=UpdEmail}, EmailUpdated);
+update_user_record([{<<"display_name">>, Name} | RestUserFields], User, EmailUpdated) ->
+    update_user_record(RestUserFields,
+                       User?RCS_USER{display_name=binary_to_list(Name)}, EmailUpdated);
+update_user_record([{<<"key_secret">>, KeySecret} | RestUserFields], User, EmailUpdated) ->
+    update_user_record(RestUserFields,
+                       User?RCS_USER{key_secret=binary_to_list(KeySecret)}, EmailUpdated);
+update_user_record([{<<"status">>, Status} | RestUserFields], User, EmailUpdated) ->
+    case Status of
+        <<"enabled">> ->
+            update_user_record(RestUserFields,
+                               User?RCS_USER{status=enabled}, EmailUpdated);
+        <<"disabled">> ->
+            update_user_record(RestUserFields,
+                               User?RCS_USER{status=disabled}, EmailUpdated);
+        _ ->
+            update_user_record(RestUserFields, User, EmailUpdated)
+    end;
+update_user_record([_ | RestUserFields], User, EmailUpdated) ->
+
+    update_user_record(RestUserFields, User, EmailUpdated).
