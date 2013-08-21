@@ -411,7 +411,7 @@ to_bucket_name(Type, Bucket) ->
         blocks ->
             Prefix = ?BLOCK_BUCKET_PREFIX
     end,
-    BucketHash = crypto:md5(Bucket),
+    BucketHash = crypto:hash(md5, Bucket),
     <<Prefix/binary, BucketHash/binary>>.
 
 %% @doc Attmpt to create a new user
