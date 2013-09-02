@@ -27,7 +27,7 @@ following structure:
     "email": "joe@jobbob.com",
     "key_id": "12345",
     "key_secret": "joesecret",
-    "canonical_id": "abababababababababababab"
+    "id": "abababababababababababab"
 }
 #+END_EXAMPLE
 
@@ -100,7 +100,7 @@ properties in the /app.config/ file to specify the credentials.
 ** Sample Usage
 *** Create a user
 #+BEGIN_EXAMPLE
-UserJson = "{\"name\": \"Joe Bob\",\"display_name\": \"joe\",\"email\": \"joe@jobbob.com\",\"key_id\": \"12345\",\"key_secret\": \"joesecret\",\"canonical_id\": \"abababababababababababab\"}".
+UserJson = "{\"name\": \"Joe Bob\",\"display_name\": \"joe\",\"email\": \"joe@jobbob.com\",\"key_id\": \"12345\",\"key_secret\": \"joesecret\",\"id\": \"abababababababababababab\"}".
 velvet:create_user("127.0.0.1", 8085, "application/json", UserJson, [{ssl, false}]).
 #+END_EXAMPLE
 *** Create a bucket
