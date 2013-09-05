@@ -1,3 +1,6 @@
+* Stanchion 1.4.1 Release Notes
+** Bugs Fixed
+- Fix packaging bug by updating node_package dependency
 * Stanchion 1.4.0 Release Notes
 ** Additions
 - Add ability to update a user record through stanchion
