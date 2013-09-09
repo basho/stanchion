@@ -49,7 +49,10 @@
          delete_bucket_policy/2,
          timestamp/1,
          to_bucket_name/2,
-         update_user/2]).
+         update_user/2,
+         sha_mac/2,
+         md5/1
+        ]).
 
 -include("stanchion.hrl").
 -include_lib("riakc/include/riakc.hrl").
@@ -411,7 +414,8 @@ to_bucket_name(Type, Bucket) ->
         blocks ->
             Prefix = ?BLOCK_BUCKET_PREFIX
     end,
-    BucketHash = crypto:hash(md5, Bucket),
+    _ = lager:info("foobarofoo~p", Bucket),
+    BucketHash = md5(Bucket),
     <<Prefix/binary, BucketHash/binary>>.
 
 %% @doc Attmpt to create a new user
@@ -440,6 +444,22 @@ update_user(KeyId, UserFields) ->
         {error, _} = Else ->
             Else
     end.
+
+
+-ifdef(new_hash).
+sha_mac(KeyData, STS) ->
+    crypto:hmac(sha, KeyData, STS).
+
+md5(Bin) ->
+    crypto:hash(md5, Bin).
+-else.
+sha_mac(KeyData, STS) ->
+    crypto:sha_mac(KeyData, STS).
+
+md5(Bin) ->
+    crypto:md5(Bin).
+-endif.
+
 
 %% ===================================================================
 %% Internal functions

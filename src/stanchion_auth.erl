@@ -87,22 +87,12 @@ request_signature(HttpVerb, RawHeaders, Path, KeyData) ->
            Date,
            BashoHeaders,
            Path],
-
-    %% This is for compatibility for R16B and R15B
-    %% R15B does not have crypto:hmac/3, which looks
-    %% newly added in R16B. in future crypto:hmac_final/1
-    %% will probably replaced with crypto:hmac/3
-    %% like crypto:hmac(sha, KeyData, STS)
-    Ctx = crypto:hmac_update(crypto:hmac_init(sha, KeyData), STS),
-    base64:encode_to_string(crypto:hmac_final(Ctx)).
+    base64:encode_to_string(stanchion_utils:sha_mac(KeyData, STS)).
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
 
-%% TODO:
-%% can this be replaced with stanchion_auth:request_sinature/2?
-%% - which is included in velvet.
 signature(KeyData, RD) ->
     Headers = normalize_headers(get_request_headers(RD)),
     BashoHeaders = extract_basho_headers(Headers),
@@ -133,14 +123,7 @@ signature(KeyData, RD) ->
            Date,
            BashoHeaders,
            Resource],
-
-    %% This is for compatibility for R16B and R15B
-    %% R15B does not have crypto:hmac/3, which looks
-    %% newly added in R16B. in future crypto:hmac_final/1
-    %% will probably replaced with crypto:hmac/3
-    %% like crypto:hmac(sha, KeyData, STS)
-    Ctx = crypto:hmac_update(crypto:hmac_init(sha, KeyData), STS),
-    base64:encode_to_string(crypto:hmac_final(Ctx)).
+    base64:encode_to_string(stanchion_utils:sha_mac(KeyData, STS)).
 
 check_auth(PresentedSignature, CalculatedSignature) ->
     PresentedSignature == CalculatedSignature.
