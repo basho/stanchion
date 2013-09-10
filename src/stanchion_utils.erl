@@ -414,7 +414,6 @@ to_bucket_name(Type, Bucket) ->
         blocks ->
             Prefix = ?BLOCK_BUCKET_PREFIX
     end,
-    _ = lager:info("foobarofoo~p", Bucket),
     BucketHash = md5(Bucket),
     <<Prefix/binary, BucketHash/binary>>.
 
