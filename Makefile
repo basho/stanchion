@@ -9,19 +9,12 @@ ERLANG_BIN       = $(shell dirname $(shell which erl))
 REBAR           ?= $(BASE_DIR)/rebar
 OVERLAY_VARS    ?=
 
-VSN := $(shell erl -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), init:stop().' | grep 'R' | sed -e 's,R\(..\)B.*,\1,')
-NEW_HASH := $(shell expr $(VSN) \>= 16)
-
 .PHONY: rel deps test
 
 all: deps compile
 
 compile:
-ifeq ($(NEW_HASH),1)
-	@(./rebar compile -Dnew_hash)
-else
 	@(./rebar compile)
-endif
 
 deps:
 	@./rebar get-deps
@@ -34,11 +27,7 @@ distclean: clean
 	@rm -rf $(PKG_ID).tar.gz
 
 test: all
-ifeq ($(NEW_HASH),1)
-	@(./rebar skip_deps=true -Dnew_hash eunit)
-else
 	@./rebar skip_deps=true eunit
-endif
 
 parity-test:
 	@python test/prototype_parity.py -v
