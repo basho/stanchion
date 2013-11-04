@@ -110,6 +110,8 @@ package.src: deps
 	rm -rf package/$(PKG_ID)
 	git archive --format=tar --prefix=$(PKG_ID)/ $(PKG_REVISION)| (cd package && tar -xf -)
 	${MAKE} -C package/$(PKG_ID) deps
+	mkdir -p package/$(PKG_ID)/priv
+	git --git-dir=.git describe --tags >package/$(PKG_ID)/priv/vsn.git
 	for dep in package/$(PKG_ID)/deps/*; do \
              echo "Processing dep: $${dep}"; \
              mkdir -p $${dep}/priv; \
