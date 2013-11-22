@@ -1,3 +1,7 @@
+* Stanchion 1.4.3 Release Notes
+** Additions
+- Update to lager 2.0.1
+- Add lager_syslog dependency for optional logging to syslog
 * Stanchion 1.4.2 Release Notes
 ** Bugs Fixed
 - Fix source tarball build.
