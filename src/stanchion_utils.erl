@@ -64,6 +64,8 @@
 -define(BLOCK_BUCKET_PREFIX, <<"0b:">>).        % Version # = 0
 
 -type bucket_op() :: create | update_acl | delete | update_policy | delete_policy.
+-type bucket_op_opts() :: [bucket_op_opt()].
+-type bucket_op_opt() :: {acl, acl()} | {policy, binary()} | delete_policy.
 
 %% ===================================================================
 %% Public API
@@ -95,10 +97,11 @@ close_riak_connection(Pid) ->
 create_bucket(BucketFields) ->
     %% @TODO Check for missing fields
     Bucket = proplists:get_value(<<"bucket">>, BucketFields, <<>>),
+    ContainerId = proplists:get_value(<<"container">>, BucketFields, []),
     OwnerId = proplists:get_value(<<"requester">>, BucketFields, <<>>),
     AclJson = proplists:get_value(<<"acl">>, BucketFields, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
-    do_bucket_op(Bucket, OwnerId, {acl, Acl}, create).
+    do_bucket_op(Bucket, OwnerId, [{acl, Acl}, {container, ContainerId}], create).
 
 %% @doc Attmpt to create a new user
 -spec create_user([{term(), term()}]) -> ok | {error, riak_connect_failed() | term()}.
@@ -133,7 +136,7 @@ create_user(UserFields) ->
 %% @doc Delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, OwnerId) ->
-    do_bucket_op(Bucket, OwnerId, {acl, ?ACL{}}, delete).
+    do_bucket_op(Bucket, OwnerId, [{acl, ?ACL{}}], delete).
 
 %% @doc Delete an object from Riak
 -spec delete_object(binary(), binary()) -> ok.
@@ -285,40 +288,45 @@ pow(Base, Power, Acc) ->
 
 %% @doc Store a new bucket in Riak
 %% though whole metadata itself is a dict, a metadata of ?MD_USERMETA is
-%% proplists of [{?MD_ACL|?MD_POLICY, ACL::binary()|PolicyBin::binary()}].
+%% proplists of {?MD_ACL, ACL::binary()}|{?MD_POLICY, PolicyBin::binary()}|
+%%  {?MD_CONTAINER, ContainerId::binary()}.
 %% should preserve other metadata. ACL and Policy can be overwritten.
--spec put_bucket(term(), binary(), {acl, acl()}|{policy, binary()}, pid())
-                -> ok | {error, term()}.
-put_bucket(BucketObj, OwnerId, AclOrPolicy, RiakPid) ->
+-spec put_bucket(term(), binary(), bucket_op_opts(), pid()) ->
+                        ok | {error, term()}.
+put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
     PutOptions = [{w, all}, {pw, all}],
     UpdBucketObj0 = riakc_obj:update_value(BucketObj, OwnerId),
     MD = case riakc_obj:get_metadatas(UpdBucketObj0) of
              [] -> % create
-                 {acl, Acl} = AclOrPolicy,
-                 M0 = [{?MD_ACL, term_to_binary(Acl)}],
-                 dict:from_list([{?MD_USERMETA, M0}]);
+                 dict:from_list([{?MD_USERMETA, []}]);
              [MD0] -> MD0;
              _E ->
                  MsgData = {siblings, riakc_obj:key(BucketObj)},
                  _ = lager:error("bucket has siblings: ~p", [MsgData]),
                  throw(MsgData) % @TODO: data broken; handle this
            end,
-    MetaVals = dict:fetch(?MD_USERMETA, MD),
-    UserMetaData = make_new_user_metadata(MetaVals, AclOrPolicy),
-    MetaData = make_new_metadata(MD, UserMetaData),
+    MetaData = make_new_metadata(MD, Opts),
     UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
     riakc_pb_socket:put(RiakPid, UpdBucketObj, PutOptions).
 
-make_new_metadata(MD, UserMeta) ->
-    dict:store(?MD_USERMETA, UserMeta, dict:erase(?MD_USERMETA, MD)).
+make_new_metadata(MD, Opts) ->
+    MetaVals = dict:fetch(?MD_USERMETA, MD),
+    UserMetaData = make_new_user_metadata(MetaVals, Opts),
+    dict:store(?MD_USERMETA, UserMetaData, dict:erase(?MD_USERMETA, MD)).
 
-make_new_user_metadata(MetaVals, {acl, Acl})->
-    [{?MD_ACL, term_to_binary(Acl)} | proplists:delete(?MD_ACL, MetaVals)];
-make_new_user_metadata(MetaVals, {policy, Policy}) ->
-    [{?MD_POLICY, term_to_binary(Policy)} |
-     proplists:delete(?MD_POLICY, MetaVals)];
-make_new_user_metadata(MetaVals, delete_policy) ->
-    proplists:delete(?MD_POLICY, MetaVals).
+make_new_user_metadata(MetaVals, [])->
+    MetaVals;
+make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
+    make_new_user_metadata(replace_meta(?MD_ACL, Acl, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{policy, Policy} | Opts]) ->
+    make_new_user_metadata(replace_meta(?MD_POLICY, Policy, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{container, ContainerId} | Opts]) ->
+    make_new_user_metadata(replace_meta(?MD_CONTAINER, ContainerId, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
+    make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts).
+
+replace_meta(Key, NewValue, MetaVals) ->
+    [{Key, term_to_binary(NewValue)} | proplists:delete(Key, MetaVals)].
 
 %% @doc Store an object in Riak
 -spec put_object(binary(), binary(), binary(), [term()]) -> ok.
@@ -379,7 +387,7 @@ set_bucket_acl(Bucket, FieldList) ->
     OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
     AclJson = proplists:get_value(<<"acl">>, FieldList, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
-    do_bucket_op(Bucket, OwnerId, {acl, Acl}, update_acl).
+    do_bucket_op(Bucket, OwnerId, [{acl, Acl}], update_acl).
 
 %% @doc add bucket policy in the global namespace
 %% FieldList.policy has JSON-encoded policy from user
@@ -391,13 +399,13 @@ set_bucket_policy(Bucket, FieldList) ->
     % @TODO: Already Checked at Riak CS, so store as it is JSON here
     % if overhead of parsing JSON were expensive, need to import
     % code of JSON parse from riak_cs_s3_policy
-    do_bucket_op(Bucket, OwnerId, {policy, PolicyJson}, update_policy).
+    do_bucket_op(Bucket, OwnerId, [{policy, PolicyJson}], update_policy).
 
 
 %% @doc Delete a bucket
 -spec delete_bucket_policy(binary(), binary()) -> ok | {error, term()}.
 delete_bucket_policy(Bucket, OwnerId) ->
-    do_bucket_op(Bucket, OwnerId, delete_policy, delete_policy).
+    do_bucket_op(Bucket, OwnerId, [delete_policy], delete_policy).
 
 %% @doc Generate a key for storing a set of manifests for deletion.
 -spec timestamp(erlang:timestamp()) -> non_neg_integer().
@@ -574,12 +582,11 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), binary(),
-                   {acl, acl()}|{policy, binary()},
-                   bucket_op()) -> ok | {error, term()}.
-do_bucket_op(<<"riak-cs">>, _OwnerId, _Acl, _BucketOp) ->
+-spec do_bucket_op(binary(), binary(), bucket_op_opts(), bucket_op()) ->
+                          ok | {error, term()}.
+do_bucket_op(<<"riak-cs">>, _OwnerId, _Opts, _BucketOp) ->
     {error, access_denied};
-do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
+do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
     case riak_connection() of
         {ok, RiakPid} ->
             %% Buckets operations can only be completed if the bucket exists
@@ -593,7 +600,7 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
                                       delete_policy -> OwnerId;
                                       delete ->        ?FREE_BUCKET_MARKER
                                   end,
-                          put_bucket(BucketObj, Value, AclOrPolicy, RiakPid);
+                          put_bucket(BucketObj, Value, Opts, RiakPid);
                       {false, Reason1} ->
                           {error, Reason1}
                   end,

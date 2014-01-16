@@ -87,3 +87,4 @@
 -define(RCS_USER, #rcs_user_v2).
 -define(MD_ACL, <<"X-Moss-Acl">>).
 -define(MD_POLICY, <<"X-Rcs-Policy">>).
+-define(MD_CONTAINER, <<"X-Rcs-Container">>).
