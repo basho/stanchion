@@ -97,11 +97,11 @@ close_riak_connection(Pid) ->
 create_bucket(BucketFields) ->
     %% @TODO Check for missing fields
     Bucket = proplists:get_value(<<"bucket">>, BucketFields, <<>>),
-    ContainerId = proplists:get_value(<<"container">>, BucketFields, []),
+    BagId = proplists:get_value(<<"bag">>, BucketFields, []),
     OwnerId = proplists:get_value(<<"requester">>, BucketFields, <<>>),
     AclJson = proplists:get_value(<<"acl">>, BucketFields, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
-    do_bucket_op(Bucket, OwnerId, [{acl, Acl}, {container, ContainerId}], create).
+    do_bucket_op(Bucket, OwnerId, [{acl, Acl}, {bag, BagId}], create).
 
 %% @doc Attmpt to create a new user
 -spec create_user([{term(), term()}]) -> ok | {error, riak_connect_failed() | term()}.
@@ -289,7 +289,7 @@ pow(Base, Power, Acc) ->
 %% @doc Store a new bucket in Riak
 %% though whole metadata itself is a dict, a metadata of ?MD_USERMETA is
 %% proplists of {?MD_ACL, ACL::binary()}|{?MD_POLICY, PolicyBin::binary()}|
-%%  {?MD_CONTAINER, ContainerId::binary()}.
+%%  {?MD_BAG, BagId::binary()}.
 %% should preserve other metadata. ACL and Policy can be overwritten.
 -spec put_bucket(term(), binary(), bucket_op_opts(), pid()) ->
                         ok | {error, term()}.
@@ -320,8 +320,8 @@ make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
     make_new_user_metadata(replace_meta(?MD_ACL, Acl, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [{policy, Policy} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_POLICY, Policy, MetaVals), Opts);
-make_new_user_metadata(MetaVals, [{container, ContainerId} | Opts]) ->
-    make_new_user_metadata(replace_meta(?MD_CONTAINER, ContainerId, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{bag, BagId} | Opts]) ->
+    make_new_user_metadata(replace_meta(?MD_BAG, BagId, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
     make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts).
 
