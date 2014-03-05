@@ -97,7 +97,7 @@ close_riak_connection(Pid) ->
 create_bucket(BucketFields) ->
     %% @TODO Check for missing fields
     Bucket = proplists:get_value(<<"bucket">>, BucketFields, <<>>),
-    BagId = proplists:get_value(<<"bag">>, BucketFields, []),
+    BagId = proplists:get_value(<<"bag">>, BucketFields, undefined),
     OwnerId = proplists:get_value(<<"requester">>, BucketFields, <<>>),
     AclJson = proplists:get_value(<<"acl">>, BucketFields, []),
     Acl = stanchion_acl_utils:acl_from_json(AclJson),
@@ -320,6 +320,8 @@ make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
     make_new_user_metadata(replace_meta(?MD_ACL, Acl, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [{policy, Policy} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_POLICY, Policy, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{bag, undefined} | Opts]) ->
+    make_new_user_metadata(MetaVals, Opts);
 make_new_user_metadata(MetaVals, [{bag, BagId} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_BAG, BagId, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
