@@ -610,7 +610,12 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
                                       delete_policy -> OwnerId;
                                       delete ->        ?FREE_BUCKET_MARKER
                                   end,
-                          put_bucket(BucketObj, Value, AclOrPolicy, RiakPid);
+                          case stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid) of
+                              false when BucketOp =:= delete ->
+                                  {error, multipart_upload_remains};
+                              _ ->
+                                  put_bucket(BucketObj, Value, AclOrPolicy, RiakPid)
+                          end;
                       {false, Reason1} ->
                           {error, Reason1}
                   end,
