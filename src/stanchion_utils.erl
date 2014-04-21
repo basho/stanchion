@@ -627,15 +627,16 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
     %% for debugging CS
     %% {false, remaining_multipart_upload}.
-    IsBucketEmpty =  bucket_empty(Bucket, RiakPid),
-    NoMultipart = stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid),
-    case {IsBucketEmpty, NoMultipart} of
-        {false, _} ->
+    case bucket_empty(Bucket, RiakPid) of
+        false ->
             {false, bucket_not_empty};
-        {true, false} ->
-            {false, multipart_upload_remains};
-        {true, true} ->
-            {true, BucketObj}
+        true ->
+            case stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid) of
+                false ->
+                    {false, multipart_upload_remains};
+                true ->
+                    {true, BucketObj}
+            end
     end.
 
 %% @doc Determine if a user with the specified email
