@@ -557,12 +557,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                     {true, BucketObj};
                 OwnerId == RequesterId andalso
                 BucketOp == delete ->
-                    case bucket_empty(Bucket, RiakPid) of
-                        true ->
-                            {true, BucketObj};
-                        false ->
-                            {false, bucket_not_empty}
-                    end;
+                    is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj);
                 OwnerId == RequesterId andalso
                 BucketOp == update_policy ->
                     {true, BucketObj};
@@ -610,12 +605,7 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
                                       delete_policy -> OwnerId;
                                       delete ->        ?FREE_BUCKET_MARKER
                                   end,
-                          case stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid) of
-                              false when BucketOp =:= delete ->
-                                  {error, multipart_upload_remains};
-                              _ ->
-                                  put_bucket(BucketObj, Value, AclOrPolicy, RiakPid)
-                          end;
+                          put_bucket(BucketObj, Value, AclOrPolicy, RiakPid);
                       {false, Reason1} ->
                           {error, Reason1}
                   end,
@@ -623,6 +613,29 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
             Res;
         {error, _} = Else ->
             Else
+    end.
+
+%% @doc bucket is ok to delete when bucket is empty. Ongoing multipart
+%% uploads are all supposed to be automatically aborted by Riak CS.
+%% If the bucket still has active objects, just fail. Else if the
+%% bucket still has ongoing multipart, Stanchion returns error and
+%% Riak CS retries sometimes, in case of concurrent multipart
+%% initiation occuring.  After a few retry Riak CS will eventually
+%% returns error to the client (maybe 500?)  Or fallback to heavy
+%% abort-all-multipart and then deletes bucket?  This will be a big
+%% TODO.
+is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
+    %% for debugging CS
+    %% {false, remaining_multipart_upload}.
+    IsBucketEmpty =  bucket_empty(Bucket, RiakPid),
+    NoMultipart = stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid),
+    case {IsBucketEmpty, NoMultipart} of
+        {false, _} ->
+            {false, bucket_not_empty};
+        {true, false} ->
+            {false, multipart_upload_remains};
+        {true, true} ->
+            {true, BucketObj}
     end.
 
 %% @doc Determine if a user with the specified email
