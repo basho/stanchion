@@ -544,6 +544,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
             if
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 BucketOp == create ->
+                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj),
                     {true, BucketObj};
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 (BucketOp == delete
@@ -551,7 +552,11 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                  BucketOp == update_acl) ->
                     {false, no_such_bucket};
                 (OwnerId == RequesterId andalso
-                BucketOp == create)
+                 BucketOp == create) ->
+                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj),
+                    {true, BucketObj};
+                (OwnerId == RequesterId andalso
+                 BucketOp == create)
                 orelse
                 BucketOp == update_acl ->
                     {true, BucketObj};
@@ -625,6 +630,15 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% abort-all-multipart and then deletes bucket?  This will be a big
 %% TODO.
 is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
+    is_bucket_clean(Bucket, RiakPid, BucketObj).
+
+%% @doc ensure there are no multipart uploads in creation time because
+%% multipart uploads remains in deleted buckets in former versions
+%% before 1.5.0 (or 1.4.6) where the bug (identified in riak_cs/#475).
+is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
+    is_bucket_clean(Bucket, RiakPid, BucketObj).
+
+is_bucket_clean(Bucket, RiakPid, BucketObj) ->
     %% for debugging CS
     %% {false, remaining_multipart_upload}.
     case bucket_empty(Bucket, RiakPid) of
