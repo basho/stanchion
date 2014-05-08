@@ -64,8 +64,8 @@
 -define(BLOCK_BUCKET_PREFIX, <<"0b:">>).        % Version # = 0
 
 -type bucket_op() :: create | update_acl | delete | update_policy | delete_policy.
--type bucket_op_opts() :: [bucket_op_opt()].
--type bucket_op_opt() :: {acl, acl()} | {policy, binary()} | delete_policy.
+-type bucket_op_options() :: [bucket_op_option()].
+-type bucket_op_option() :: {acl, acl()} | {policy, binary()} | delete_policy | {bag, binary()}.
 
 %% ===================================================================
 %% Public API
@@ -291,7 +291,7 @@ pow(Base, Power, Acc) ->
 %% proplists of {?MD_ACL, ACL::binary()}|{?MD_POLICY, PolicyBin::binary()}|
 %%  {?MD_BAG, BagId::binary()}.
 %% should preserve other metadata. ACL and Policy can be overwritten.
--spec put_bucket(term(), binary(), bucket_op_opts(), pid()) ->
+-spec put_bucket(term(), binary(), bucket_op_options(), pid()) ->
                         ok | {error, term()}.
 put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
     PutOptions = [{w, all}, {pw, all}],
@@ -309,11 +309,13 @@ put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
     UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
     riakc_pb_socket:put(RiakPid, UpdBucketObj, PutOptions).
 
+-spec make_new_metadata(dict(), bucket_op_options()) -> dict().
 make_new_metadata(MD, Opts) ->
     MetaVals = dict:fetch(?MD_USERMETA, MD),
     UserMetaData = make_new_user_metadata(MetaVals, Opts),
     dict:store(?MD_USERMETA, UserMetaData, dict:erase(?MD_USERMETA, MD)).
 
+-spec make_new_user_metadata(proplists:proplist(), bucket_op_options()) -> proplists:proplist().
 make_new_user_metadata(MetaVals, [])->
     MetaVals;
 make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
@@ -584,7 +586,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     end.
 
 %% @doc Perform an operation on a bucket.
--spec do_bucket_op(binary(), binary(), bucket_op_opts(), bucket_op()) ->
+-spec do_bucket_op(binary(), binary(), bucket_op_options(), bucket_op()) ->
                           ok | {error, term()}.
 do_bucket_op(<<"riak-cs">>, _OwnerId, _Opts, _BucketOp) ->
     {error, access_denied};
