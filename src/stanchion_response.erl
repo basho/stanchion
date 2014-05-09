@@ -45,7 +45,7 @@ error_message({riak_connect_failed, Reason}) ->
     io_lib:format("Unable to establish connection to Riak. Reason: ~p", [Reason]);
 error_message({unsatisfied_constraint, Constraint}) ->
     io_lib:format("Unable to complete operation due to ~s constraint violation.", [Constraint]);
-error_message(remaining_multipart_upload) ->
+error_message(multipart_upload_remains) ->
     "Multipart uploads still remaining.";
 error_message(unknown_error) ->
     "Unexpected error occurred. Please see the stanchion error log for more details.".
@@ -59,7 +59,7 @@ error_code(entity_too_large) -> "EntityTooLarge";
 error_code(no_such_bucket) -> "NoSuchBucket";
 error_code({riak_connect_failed, _}) -> "RiakConnectFailed";
 error_code({unsatisfied_constraint, _}) -> "UnsatisfiedConstraint";
-error_code(remaining_multipart_upload) -> "MultipartUploadRemaining";
+error_code(multipart_upload_remains) -> "MultipartUploadRemaining";
 error_code(unknown_error) -> "UnexpectedError".
 
 status_code(access_denied) ->  403;
@@ -71,7 +71,7 @@ status_code(invalid_access_key_id) -> 403;
 status_code(no_such_bucket) -> 404;
 status_code({riak_connect_failed, _}) -> 503;
 status_code({unsatisfied_constraint, _}) -> 500;
-status_code(remaining_multipart_upload) -> 428;
+status_code(multipart_upload_remains) -> 409;
 status_code(unknown_error) -> 500.
 
 respond(StatusCode, Body, ReqData, Ctx) ->
