@@ -544,8 +544,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
             if
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 BucketOp == create ->
-                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj),
-                    {true, BucketObj};
+                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj);
                 OwnerId == ?FREE_BUCKET_MARKER andalso
                 (BucketOp == delete
                  orelse
@@ -553,8 +552,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                     {false, no_such_bucket};
                 (OwnerId == RequesterId andalso
                  BucketOp == create) ->
-                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj),
-                    {true, BucketObj};
+                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj);
                 (OwnerId == RequesterId andalso
                  BucketOp == create)
                 orelse
@@ -624,7 +622,7 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% uploads are all supposed to be automatically aborted by Riak CS.
 %% If the bucket still has active objects, just fail. Else if the
 %% bucket still has ongoing multipart, Stanchion returns error and
-%% Riak CS retries sometimes, in case of concurrent multipart
+%% Riak CS retries some times, in case of concurrent multipart
 %% initiation occuring.  After a few retry Riak CS will eventually
 %% returns error to the client (maybe 500?)  Or fallback to heavy
 %% abort-all-multipart and then deletes bucket?  This will be a big
@@ -639,8 +637,6 @@ is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
     is_bucket_clean(Bucket, RiakPid, BucketObj).
 
 is_bucket_clean(Bucket, RiakPid, BucketObj) ->
-    %% for debugging CS
-    %% {false, remaining_multipart_upload}.
     case bucket_empty(Bucket, RiakPid) of
         false ->
             {false, bucket_not_empty};

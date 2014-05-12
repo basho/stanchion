@@ -22,10 +22,9 @@
 
 -export([check_no_multipart_uploads/2]).
 
-%%　-include("riak_moss.hrl").
 -include("stanchion.hrl").
 
--type cluster_id() :: undefined | term().  % Type still in flux.
+-type cluster_id() :: undefined | binary().  % Type still in flux.
 
 -type cs_uuid() :: binary().
 
@@ -186,20 +185,20 @@
 check_no_multipart_uploads(Bucket, RiakPid) ->
     HashBucket = stanchion_utils:to_bucket_name(objects, Bucket),
     {ok, Keys} = riakc_pb_socket:list_keys(RiakPid, HashBucket),
-    
+
     %% check all up
     lists:all(fun(Key) ->
-                      has_any_upload(HashBucket, Key, RiakPid)
+                      has_no_upload(HashBucket, Key, RiakPid)
               end, Keys).
 
-has_any_upload(HashBucket, Key, RiakPid) ->    
+has_no_upload(HashBucket, Key, RiakPid) ->
     {ok, Obj} = riakc_pb_socket:get(RiakPid, HashBucket, Key),
     Manifests = manifests_from_riak_object(Obj),
     lists:all(fun({_UUID,Manifest}) ->
-                      case Manifest#lfs_manifest_v3.state of
-                          writing -> 
+                      case Manifest?MANIFEST.state of
+                          writing ->
                               %% if this is mp => false
-                              not proplists:is_defined(multipart, Manifest#lfs_manifest_v3.props);
+                              not proplists:is_defined(multipart, Manifest?MANIFEST.props);
                           _ ->
                               true
                       end
@@ -228,11 +227,7 @@ manifests_from_riak_object(RiakObject) ->
     Upgraded = upgrade_wrapped_manifests(DecodedSiblings),
 
     %% resolve the siblings
-    Resolved = stanchion_manifest_resolution:resolve(Upgraded),
-
-    %% prune old scheduled_delete manifests
-    %%stanchion_manifest_utils:prune(Resolved).
-    Resolved.
+    stanchion_manifest_resolution:resolve(Upgraded).
 
 -spec upgrade_wrapped_manifests([orddict:orddict()]) -> [orddict:orddict()].
 upgrade_wrapped_manifests(ListofOrdDicts) ->
