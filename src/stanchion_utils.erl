@@ -627,15 +627,24 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% returns error to the client (maybe 500?)  Or fallback to heavy
 %% abort-all-multipart and then deletes bucket?  This will be a big
 %% TODO.
+-spec is_bucket_ready_to_delete(binary(), pid(), riakc_obj()) -> {boolean(), riakc_obj()}.
 is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
     is_bucket_clean(Bucket, RiakPid, BucketObj).
 
 %% @doc ensure there are no multipart uploads in creation time because
 %% multipart uploads remains in deleted buckets in former versions
 %% before 1.5.0 (or 1.4.6) where the bug (identified in riak_cs/#475).
+-spec is_bucket_ready_to_create(binary(), pid(), riakc_obj()) -> {boolean(), riakc_obj()}.
 is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
     is_bucket_clean(Bucket, RiakPid, BucketObj).
 
+%% @doc here runs two list_keys, one in bucket_empty/2, another in
+%% stanchion_multipart:check_no_multipart_uploads/2. If there are
+%% bunch of pending_delete manifests this may slow (twice as before
+%% #475 fix). If there are bunch of scheduled_delete manifests, this
+%% may also slow, but wait for Garbage Collection to collect those
+%% trashes may improve the speed. => TODO.
+-spec is_bucket_clean(binary(), pid(), riakc_obj()) -> {boolean(), riakc_obj()}.
 is_bucket_clean(Bucket, RiakPid, BucketObj) ->
     case bucket_empty(Bucket, RiakPid) of
         false ->
