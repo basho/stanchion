@@ -541,37 +541,20 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket, GetOptions) of
         {ok, BucketObj} ->
             OwnerId = riakc_obj:get_value(BucketObj),
-            if
-                OwnerId == ?FREE_BUCKET_MARKER andalso
-                BucketOp == create ->
-                    {true, BucketObj};
-                OwnerId == ?FREE_BUCKET_MARKER andalso
-                (BucketOp == delete
-                 orelse
-                 BucketOp == update_acl) ->
+            case {OwnerId, BucketOp} of
+                {?FREE_BUCKET_MARKER, create} ->
+                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj);
+                {?FREE_BUCKET_MARKER, _} ->
                     {false, no_such_bucket};
-                (OwnerId == RequesterId andalso
-                BucketOp == create)
-                orelse
-                BucketOp == update_acl ->
+
+                {RequesterId, delete} ->
+                    is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj);
+                {RequesterId, _} ->
                     {true, BucketObj};
-                OwnerId == RequesterId andalso
-                BucketOp == delete ->
-                    case bucket_empty(Bucket, RiakPid) of
-                        true ->
-                            {true, BucketObj};
-                        false ->
-                            {false, bucket_not_empty}
-                    end;
-                OwnerId == RequesterId andalso
-                BucketOp == update_policy ->
-                    {true, BucketObj};
-                OwnerId == RequesterId andalso
-                BucketOp == delete_policy ->
-                    {true, BucketObj};
-                true ->
+                _ ->
                     {false, bucket_already_exists}
             end;
+
         {error, notfound} ->
             case BucketOp of
                 create ->
@@ -618,6 +601,52 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
             Res;
         {error, _} = Else ->
             Else
+    end.
+
+%% @doc bucket is ok to delete when bucket is empty. Ongoing multipart
+%% uploads are all supposed to be automatically aborted by Riak CS.
+%% If the bucket still has active objects, just fail. Else if the
+%% bucket still has ongoing multipart, Stanchion returns error and
+%% Riak CS retries some times, in case of concurrent multipart
+%% initiation occuring.  After a few retry Riak CS will eventually
+%% returns error to the client (maybe 500?)  Or fallback to heavy
+%% abort-all-multipart and then deletes bucket?  This will be a big
+%% TODO.
+-spec is_bucket_ready_to_delete(binary(), pid(), riakc_obj()) ->
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
+is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
+    is_bucket_clean(Bucket, RiakPid, BucketObj).
+
+%% @doc ensure there are no multipart uploads in creation time because
+%% multipart uploads remains in deleted buckets in former versions
+%% before 1.5.0 (or 1.4.6) where the bug (identified in riak_cs/#475).
+-spec is_bucket_ready_to_create(binary(), pid(), riakc_obj()) ->
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
+is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
+    is_bucket_clean(Bucket, RiakPid, BucketObj).
+
+%% @doc here runs two list_keys, one in bucket_empty/2, another in
+%% stanchion_multipart:check_no_multipart_uploads/2. If there are
+%% bunch of pending_delete manifests this may slow (twice as before
+%% #475 fix). If there are bunch of scheduled_delete manifests, this
+%% may also slow, but wait for Garbage Collection to collect those
+%% trashes may improve the speed. => TODO.
+-spec is_bucket_clean(binary(), pid(), riakc_obj()) ->
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
+is_bucket_clean(Bucket, RiakPid, BucketObj) ->
+    case bucket_empty(Bucket, RiakPid) of
+        false ->
+            {false, bucket_not_empty};
+        true ->
+            case stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid) of
+                false ->
+                    {false, multipart_upload_remains};
+                true ->
+                    {true, BucketObj}
+            end
     end.
 
 %% @doc Determine if a user with the specified email
