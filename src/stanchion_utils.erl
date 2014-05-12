@@ -541,35 +541,22 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket, GetOptions) of
         {ok, BucketObj} ->
             OwnerId = riakc_obj:get_value(BucketObj),
-            if
-                OwnerId == ?FREE_BUCKET_MARKER andalso
-                BucketOp == create ->
+            case {OwnerId, BucketOp} of
+                {?FREE_BUCKET_MARKER, create} ->
                     is_bucket_ready_to_create(Bucket, RiakPid, BucketObj);
-                OwnerId == ?FREE_BUCKET_MARKER andalso
-                (BucketOp == delete
-                 orelse
-                 BucketOp == update_acl) ->
+                {?FREE_BUCKET_MARKER, _} ->
                     {false, no_such_bucket};
-                (OwnerId == RequesterId andalso
-                 BucketOp == create) ->
-                    is_bucket_ready_to_create(Bucket, RiakPid, BucketObj);
-                (OwnerId == RequesterId andalso
-                 BucketOp == create)
-                orelse
-                BucketOp == update_acl ->
-                    {true, BucketObj};
-                OwnerId == RequesterId andalso
-                BucketOp == delete ->
+
+                {RequesterId, create} ->
+                    {false, bucket_already_exists};
+                {RequesterId, delete} ->
                     is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj);
-                OwnerId == RequesterId andalso
-                BucketOp == update_policy ->
+                {RequesterId, _} ->
                     {true, BucketObj};
-                OwnerId == RequesterId andalso
-                BucketOp == delete_policy ->
-                    {true, BucketObj};
-                true ->
+                _ ->
                     {false, bucket_already_exists}
             end;
+
         {error, notfound} ->
             case BucketOp of
                 create ->
