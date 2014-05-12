@@ -547,8 +547,6 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                 {?FREE_BUCKET_MARKER, _} ->
                     {false, no_such_bucket};
 
-                {RequesterId, create} ->
-                    {false, bucket_already_exists};
                 {RequesterId, delete} ->
                     is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj);
                 {RequesterId, _} ->
