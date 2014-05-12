@@ -613,7 +613,8 @@ do_bucket_op(Bucket, OwnerId, AclOrPolicy, BucketOp) ->
 %% abort-all-multipart and then deletes bucket?  This will be a big
 %% TODO.
 -spec is_bucket_ready_to_delete(binary(), pid(), riakc_obj()) ->
-                                       {false, multipart_upload_remains} | {true, riakc_obj()}.
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
 is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
     is_bucket_clean(Bucket, RiakPid, BucketObj).
 
@@ -621,7 +622,8 @@ is_bucket_ready_to_delete(Bucket, RiakPid, BucketObj) ->
 %% multipart uploads remains in deleted buckets in former versions
 %% before 1.5.0 (or 1.4.6) where the bug (identified in riak_cs/#475).
 -spec is_bucket_ready_to_create(binary(), pid(), riakc_obj()) ->
-                                       {false, multipart_upload_remains} | {true, riakc_obj()}.
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
 is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
     is_bucket_clean(Bucket, RiakPid, BucketObj).
 
@@ -632,7 +634,8 @@ is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
 %% may also slow, but wait for Garbage Collection to collect those
 %% trashes may improve the speed. => TODO.
 -spec is_bucket_clean(binary(), pid(), riakc_obj()) ->
-                                       {false, multipart_upload_remains} | {true, riakc_obj()}.
+                                       {false, multipart_upload_remains|bucket_not_empty} |
+                                       {true, riakc_obj()}.
 is_bucket_clean(Bucket, RiakPid, BucketObj) ->
     case bucket_empty(Bucket, RiakPid) of
         false ->
