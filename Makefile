@@ -67,6 +67,7 @@ orgs-README:
 
 DIALYZER_APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
 	xmerl webtool eunit syntax_tools compiler
+PLT ?= $(HOME)/.stanchion_dialyzer_plt
 
 ##
 ## Packaging targets
