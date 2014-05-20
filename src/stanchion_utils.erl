@@ -648,17 +648,74 @@ is_bucket_ready_to_create(Bucket, RiakPid, BucketObj) ->
                                        {false, multipart_upload_remains|bucket_not_empty} |
                                        {true, riakc_obj()}.
 is_bucket_clean(Bucket, RiakPid, BucketObj) ->
-    case bucket_empty(Bucket, RiakPid) of
-        false ->
-            {false, bucket_not_empty};
-        true ->
-            case stanchion_multipart:check_no_multipart_uploads(Bucket, RiakPid) of
-                false ->
-                    {false, multipart_upload_remains};
-                true ->
-                    {true, BucketObj}
+    {ok, ManifestRiakPid} = manifest_connection(RiakPid, BucketObj),
+    try
+        case bucket_empty(Bucket, ManifestRiakPid) of
+            false ->
+                {false, bucket_not_empty};
+            true ->
+                case stanchion_multipart:check_no_multipart_uploads(Bucket, ManifestRiakPid) of
+                    false ->
+                        {false, multipart_upload_remains};
+                    true ->
+                        {true, BucketObj}
+                end
+        end
+    after
+        close_manifest_connection(RiakPid, ManifestRiakPid)
+    end.
+
+-spec manifest_connection(pid, riakc_obj:riakc_obj()) -> {ok, pid()} | {error, term()}.
+manifest_connection(RiakPid, BucketObj) ->
+    case bag_id_from_bucket(BucketObj) of
+        undefined -> {ok, RiakPid};
+        BagId ->
+            case conn_info_from_bag(BagId, application:get_env(stanchion, bags)) of
+                %% No connection information for the bag. Mis-configuration. Stop processing.
+                undefined -> {error, {no_bag, BagId}};
+                {Address, Port} -> riak_connection(Address, Port)
             end
     end.
+
+-spec conn_info_from_bag(binary(), undefined | {ok, [{string(), string(), non_neg_integer()}]})
+                        -> {string(), non_neg_integer()}.
+conn_info_from_bag(_BagId, undefined) ->
+    undefined;
+conn_info_from_bag(BagId, {ok, Bags}) ->
+    BagIdStr = binary_to_list(BagId),
+    case lists:keyfind(BagIdStr, 1, Bags) of
+        false ->
+            {error, no_bag};
+        {BagIdStr, Address, Port} ->
+            {Address, Port}
+    end.
+
+-spec bag_id_from_bucket(riakc_obj:riakc_obj()) -> binary().
+bag_id_from_bucket(BucketObj) ->
+    Contents = riakc_obj:get_contents(BucketObj),
+    bag_id_from_contents(Contents).
+
+bag_id_from_contents([]) ->
+    undefined;
+bag_id_from_contents([{MD, _} | Contents]) ->
+    case bag_id_from_meta(dict:fetch(?MD_USERMETA, MD)) of
+        undefined ->
+            bag_id_from_contents(Contents);
+        BagId ->
+            BagId
+    end.
+
+bag_id_from_meta([]) ->
+    undefined;
+bag_id_from_meta([{?MD_BAG, Value} | _]) ->
+    binary_to_term(Value);
+bag_id_from_meta([_MD | MDs]) ->
+    bag_id_from_meta(MDs).
+
+close_manifest_connection(RiakPid, RiakPid) ->
+    ok;
+close_manifest_connection(_RiakPid, ManifestRiakPid) ->
+    close_riak_connection(ManifestRiakPid).
 
 %% @doc Determine if a user with the specified email
 %% address already exists. There could be consistency
