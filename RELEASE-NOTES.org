@@ -1,3 +1,9 @@
+* Stanchion 1.5.0 Release Notes
+** Addisions
+- Update to lager 2.0.3
+** Bugs Fixed
+- Include lager_syslog to release package (#81)
+- MP initiated objects remains after delete/create buckets riak_cs/#475 fixed by riak_cs/#857 stanchon/#78
 * Stanchion 1.4.3 Release Notes
 ** Additions
 - Update to lager 2.0.1
