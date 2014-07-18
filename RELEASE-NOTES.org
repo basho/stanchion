@@ -1,7 +1,7 @@
 * Stanchion 1.5.0 Release Notes
 ** Addisions
 - Update to lager 2.0.3
-- Compiles with R16B0x (Releases still by R16B01)
+- Compiles with R16B0x (Releases still by R15B01)
 ** Bugs Fixed
 - Include lager_syslog to release package (#81)
 - Multipart initiated objects remains after delete/create buckets riak_cs/#475 fixed by riak_cs/#857 stanchon/#78
