@@ -16,10 +16,8 @@
 # Or, alternatively, just substitute the paths to the kerl install paths as
 # that should work too.
 
-# R14B04=${R14B04:-$HOME/erlang-R14B04}
-# R15B01=${R15B01:-$HOME/erlang-R15B01}
-R14B04=${R14B04:-$HOME/erlang/R14B04-64}
 R15B01=${R15B01:-$HOME/erlang/R15B01-64}
+R16B02=${R16B02:-$HOME/erlang/R16B02-64}
 
 checkbuild()
 {
@@ -73,28 +71,17 @@ build()
 download()
 {
   URI=$1
-  FILENAME=`echo $URI | awk -F/ '{ print $7 }'`
+  FILENAME=`echo $URI | awk -F/ '{ print $8 }'`
   if [ ! -f $FILENAME ]; then
-    s3cmd get --continue $URI
+    wget $URI
   fi
 }
 
 
-checkbuild $R14B04
 checkbuild $R15B01
+checkbuild $R16B02
 
-# Download Riak CS and Stanchion release source, need s3cmd configured
-# You must have the proper credentials configured in ~/.s3cfg for this to work.
-download s3://builds.basho.com/stanchion/1.2/1.2.2/stanchion-1.2.2.tar.gz
-download s3://builds.basho.com/stanchion/1.1/1.1.0/stanchion-1.1.0.tar.gz
-download s3://builds.basho.com/stanchion/1.0/1.0.1/stanchion-1.0.1.tar.gz
+download http://s3.amazonaws.com/downloads.basho.com/stanchion/1.5/1.5.0/stanchion-1.5.0.tar.gz
 
-
-tar -xzf stanchion-1.0.1.tar.gz
-build "stanchion-1.0.1" $R14B04
-
-tar -xzf stanchion-1.1.0.tar.gz
-build "stanchion-1.1.0" $R14B04
-
-tar -xzf stanchion-1.2.2.tar.gz
-build "stanchion-1.2.2" $R15B01
+tar -xf stanchion-1.5.0.tar.gz
+build "stanchion-1.5.0" $R15B01
