@@ -47,6 +47,8 @@
          set_bucket_acl/2,
          set_bucket_policy/2,
          delete_bucket_policy/2,
+         set_bucket_lifecycle/3,
+         delete_bucket_lifecycle/2,
          timestamp/1,
          to_bucket_name/2,
          update_user/2,
@@ -322,12 +324,18 @@ make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
     make_new_user_metadata(replace_meta(?MD_ACL, Acl, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [{policy, Policy} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_POLICY, Policy, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{lifecycle, LifecycleXML} | Opts]) ->
+    make_new_user_metadata(replace_meta(?MD_LIFECYCLE, LifecycleXML, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [{bag, undefined} | Opts]) ->
     make_new_user_metadata(MetaVals, Opts);
 make_new_user_metadata(MetaVals, [{bag, BagId} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_BAG, BagId, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
-    make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts).
+    make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [delete_lifecycle | Opts]) ->
+    make_new_user_metadata(proplists:delete(?MD_LIFECYCLE, MetaVals), Opts).
+
+
 
 replace_meta(Key, NewValue, MetaVals) ->
     [{Key, term_to_binary(NewValue)} | proplists:delete(Key, MetaVals)].
@@ -410,6 +418,14 @@ set_bucket_policy(Bucket, FieldList) ->
 -spec delete_bucket_policy(binary(), binary()) -> ok | {error, term()}.
 delete_bucket_policy(Bucket, OwnerId) ->
     do_bucket_op(Bucket, OwnerId, [delete_policy], delete_policy).
+
+-spec set_bucket_lifecycle(binary(), binary(), binary()) -> ok | {error, term()}.
+set_bucket_lifecycle(Bucket, Owner, LifecycleXML) ->
+    lager:info("set_bucket_lifecycle << ~p", [Owner]),
+    do_bucket_op(Bucket, Owner, [{lifecycle, LifecycleXML}], update_lifecycle).
+
+delete_bucket_lifecycle(Bucket, OwnerId) ->
+    do_bucket_op(Bucket, OwnerId, [delete_lifecycle], delete_lifecycle).
 
 %% @doc Generate a key for storing a set of manifests for deletion.
 -spec timestamp(erlang:timestamp()) -> non_neg_integer().
@@ -602,6 +618,8 @@ do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
                                       update_acl ->    OwnerId;
                                       update_policy -> OwnerId;
                                       delete_policy -> OwnerId;
+                                      update_lifecycle -> OwnerId;
+                                      delete_lifecycle -> OwnerId;
                                       delete ->        ?FREE_BUCKET_MARKER
                                   end,
                           put_bucket(BucketObj, Value, Opts, RiakPid);
