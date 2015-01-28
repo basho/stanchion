@@ -48,17 +48,9 @@ start_link() ->
                          integer()},
                         [supervisor:child_spec()]}}.
 init([]) ->
-    case application:get_env(stanchion, stanchion_ip) of
-        {ok, Ip} ->
-            ok;
-        undefined ->
-            Ip = "0.0.0.0"
-    end,
-    case application:get_env(stanchion, stanchion_port) of
-        {ok, Port} ->
-            ok;
-        undefined ->
-            Port = 80
+    {Ip, Port} = case application:get_env(stanchion, host) of
+        {ok, {_, _} = HostPort} -> HostPort;
+        undefined -> {"0.0.0.0", 80}
     end,
 
     %% Create child specifications

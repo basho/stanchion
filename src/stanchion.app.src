@@ -16,9 +16,7 @@
                  ]},
   {mod, { stanchion_app, []}},
   {env, [
-         {stanchion_ip, "127.0.0.1"},
-         {stanchion_port, 8080},
-         {riak_ip, "127.0.0.1"},
-         {riak_pb_port, 8087}
+         {listener, {"127.0.0.1", 8085}},
+         {riak_host, {"127.0.0.1", 8087}},
         ]}
  ]}.

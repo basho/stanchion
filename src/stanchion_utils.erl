@@ -351,18 +351,10 @@ put_object(BucketName, Key, Value, Metadata) ->
 -type riak_connect_failed() :: {riak_connect_failed, tuple()}.
 -spec riak_connection() -> {ok, pid()} | {error, riak_connect_failed()}.
 riak_connection() ->
-    case application:get_env(stanchion, riak_ip) of
-        {ok, Host} ->
-            ok;
-        undefined ->
-            Host = "127.0.0.1"
-    end,
-    case application:get_env(stanchion, riak_pb_port) of
-        {ok, Port} ->
-            ok;
-        undefined ->
-            Port = 8087
-    end,
+    {Host, Port} = case application:get_env(stanchion, riak_host) of
+                       {ok, {_, _} = HostPort} -> HostPort;
+                       undefined -> {"127.0.0.1",  8087}
+                   end,
     riak_connection(Host, Port).
 
 %% @doc Get a protobufs connection to the riak cluster.
