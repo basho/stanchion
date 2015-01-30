@@ -1,8 +1,6 @@
 %%-*- mode: erlang -*-
 
-%% @doc where exactly listens to
-%% {stanchion_ip, "{{stanchion_ip}}"},
-%% {stanchion_port, {{stanchion_port}} } ,
+%% @doc listen port and IP address
 {mapping, "listener", "stanchion.host", [
   {default, {"{{stanchion_ip}}" , {{stanchion_port}} }},
   {datatype, ip},
@@ -23,9 +21,7 @@
   {commented, "$(platform_etc_dir)/key.pem"}
 ]}.
 
-%% @doc Riak connection details
-%% {riak_ip, "{{riak_ip}}"},
-%% {riak_pb_port, {{riak_pb_port}} },
+%% @doc Riak IP address and port number where Stanchion connects
 {mapping, "riak_host", "stanchion.riak_host", [
   {default, {"{{riak_ip}}", {{riak_pb_port}} }},
   {datatype, ip},
@@ -119,9 +115,9 @@
   {datatype, flag}
 ]}.
 
-%% @doc When set to 'on', enables log output to syslog.
+%% @doc Syslog default identifier
 {mapping, "log.syslog.ident", "lager.handlers", [
-  {default, "riak"},
+  {default, "stanchion"},
   hidden
 ]}.
 
