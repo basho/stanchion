@@ -28,10 +28,9 @@
   {validators, ["valid_host"]}
 ]}.
 
-%% @doc Admin user credentials. Admin access like /riak-cs/stats
-%% requires this entry to be set properly. The credentials specified
-%% here must match the admin credentials specified in the stanchion
-%% app.config for the system to function properly.
+%% @doc Admin user credentials. The credentials specified here must
+%% match the admin credentials specified in the riak-cs app.config
+%% for the system to function properly.
 {mapping, "admin.key", "stanchion.admin_key", [
   {default, "{{admin_key}}"},
   {datatype, string}
@@ -48,7 +47,7 @@
   hidden
 ]}.
 
-%% @doc Platform-specific installation paths (substituted by rebar)
+%% @doc Platform-specific installation paths
 {mapping, "platform_bin_dir", "stanchion.platform_bin_dir", [
   {datatype, directory},
   {default, "{{platform_bin_dir}}"}
@@ -121,7 +120,7 @@
   hidden
 ]}.
 
-%% @doc Syslog facility to log entries from Riak.
+%% @doc Syslog facility to log entries from Stanchion.
 {mapping, "log.syslog.facility", "lager.handlers", [
   {default, daemon},
   {datatype, {enum,[kern, user, mail, daemon, auth, syslog,
@@ -278,12 +277,6 @@
 ]}.
 
 
-%% override zdbbl from 1mb to 32mb
-{mapping, "erlang.distribution_buffer_size", "vm_args.+zdbbl", [
-  {default, "32MB"},
-  merge
-]}.
-
 %% VM scheduler collapse, part 1 of 2
 {mapping, "erlang.schedulers.force_wakeup_interval", "vm_args.+sfwi", [
   {default, 500},
@@ -298,14 +291,6 @@
 ]}.
 
 {{#devrel}}
-%% Because of the 'merge' keyword in the proplist below, the docs and datatype
-%% are pulled from the leveldb schema.
-{mapping, "leveldb.limited_developer_mem", "eleveldb.limited_developer_mem", [
-  {default, on},
-  {level, basic},
-  merge
-]}.
-
 %% @doc erlang vm shutdown_time is useful when running a riak_test devrel
 {mapping, "erlang.shutdown_time", "vm_args.-shutdown_time", [
   {default, "10s"},
