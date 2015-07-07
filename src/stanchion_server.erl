@@ -41,7 +41,8 @@
          delete_bucket/2,
          set_bucket_acl/2,
          stop/1,
-         update_user/2]).
+         update_user/2,
+         msg_q_len/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -55,6 +56,27 @@
                 riak_port :: pos_integer()}).
 -type state() :: #state{}.
 
+-define(TURNAROUND_TIME(Call),
+        begin
+            StartTime_____tat = os:timestamp(),
+            Result_____tat  = (Call),
+            EndTime_____tat = os:timestamp(),
+            {Result_____tat,
+             timer:now_diff(EndTime_____tat,
+                            StartTime_____tat)}
+        end).
+
+%% This ?TURNAROUND_TIME has another ?TURNAROUND_TIME at gen_server
+%% process, to measure both waiting time and service time.
+-define(MEASURE(Name, Call),
+        begin
+            {{Result_____, ServiceTime____},
+             TATus_____} = ?TURNAROUND_TIME(Call),
+            WaitingTime____ = TATus_____ - ServiceTime____,
+            lager:info("~p ~p ~p", [Name, Result_____, ServiceTime____]),
+            stanchion_stats:update(Name, ServiceTime____, WaitingTime____),
+            Result_____
+        end).
 
 %% ===================================================================
 %% Public API
@@ -68,7 +90,10 @@ start_link() ->
 %% @doc Attempt to create a bucket
 -spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
 create_bucket(BucketData) ->
-    gen_server:call(?MODULE, {create_bucket, BucketData}, infinity).
+    ?MEASURE([bucket, create],
+             (gen_server:call(?MODULE,
+                              {create_bucket, BucketData},
+                              infinity))).
 
 %% @doc Attempt to create a bucket
 -spec create_user([{term(), term()}]) ->
@@ -76,18 +101,25 @@ create_bucket(BucketData) ->
                          {error, term()} |
                          {error, stanchion_utils:riak_connect_failed()}.
 create_user(UserData) ->
-    gen_server:call(?MODULE, {create_user, UserData}, infinity).
+    ?MEASURE([user, create], (gen_server:call(?MODULE,
+                                              {create_user, UserData},
+                                              infinity))).
 
 %% @doc Attempt to delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, UserId) ->
-    gen_server:call(?MODULE, {delete_bucket, Bucket, UserId}, infinity).
-
+    ?MEASURE([bucket, delete],
+             (gen_server:call(?MODULE,
+                              {delete_bucket, Bucket, UserId},
+                              infinity))).
 
 %% @doc Set the ACL for a bucket
 -spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
 set_bucket_acl(Bucket, FieldList) ->
-    gen_server:call(?MODULE, {set_acl, Bucket, FieldList}, infinity).
+    ?MEASURE([bucket, put_acl],
+             (gen_server:call(?MODULE,
+                              {set_acl, Bucket, FieldList},
+                              infinity))).
 
 stop(Pid) ->
     gen_server:cast(Pid, stop).
@@ -98,7 +130,16 @@ stop(Pid) ->
                          {error, term()} |
                          {error, stanchion_utils:riak_connect_failed()}.
 update_user(KeyId, UserData) ->
-    gen_server:call(?MODULE, {update_user, KeyId, UserData}, infinity).
+    ?MEASURE([user, update],
+             (gen_server:call(?MODULE,
+                              {update_user, KeyId, UserData},
+                              infinity))).
+
+-spec msg_q_len() -> non_neg_integer().
+msg_q_len() ->
+    Pid = whereis(?MODULE),
+    {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
+    Len.
 
 %% ===================================================================
 %% gen_server callbacks
@@ -117,27 +158,27 @@ init(test) ->
 handle_call({create_bucket, BucketData},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:create_bucket(BucketData),
+    Result = ?TURNAROUND_TIME(stanchion_utils:create_bucket(BucketData)),
     {reply, Result, State};
 handle_call({create_user, UserData},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:create_user(UserData),
+    Result = ?TURNAROUND_TIME(stanchion_utils:create_user(UserData)),
     {reply, Result, State};
 handle_call({update_user, KeyId, UserData},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:update_user(KeyId, UserData),
+    Result = ?TURNAROUND_TIME(stanchion_utils:update_user(KeyId, UserData)),
     {reply, Result, State};
 handle_call({delete_bucket, Bucket, OwnerId},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:delete_bucket(Bucket, OwnerId),
+    Result = ?TURNAROUND_TIME(stanchion_utils:delete_bucket(Bucket, OwnerId)),
     {reply, Result, State};
 handle_call({set_acl, Bucket, FieldList},
             _From,
             State=#state{}) ->
-    Result = stanchion_utils:set_bucket_acl(Bucket, FieldList),
+    Result = ?TURNAROUND_TIME(stanchion_utils:set_bucket_acl(Bucket, FieldList)),
     {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.

@@ -1,0 +1,32 @@
+#!/bin/sh
+# -*- tab-width:4;indent-tabs-mode:nil -*-
+# ex: ts=4 sw=4 et
+
+# Pull environment for this install
+. "{{runner_base_dir}}/lib/env.sh"
+
+# Make sure the user running this script is the owner and/or su to that user
+check_user "$@"
+
+# Make sure CWD is set to runner run dir
+cd $RUNNER_BASE_DIR
+
+# Identify the script name
+SCRIPT=`basename $0`
+
+usage() {
+    echo "Usage: $SCRIPT { status }"
+}
+
+# Check the first argument for instructions
+case "$1" in
+    status)
+        shift
+        node_up_check
+        $NODETOOL rpc stanchion_console status
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
