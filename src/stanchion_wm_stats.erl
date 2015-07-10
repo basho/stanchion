@@ -63,7 +63,9 @@ is_authorized(RD, Ctx) ->
 -spec content_types_provided(term(), term()) ->
                                     {[{string(), atom()}], term(), term()}.
 content_types_provided(RD, Ctx) ->
-    {[{"application/json", produce_body}], RD, Ctx}.
+    {[{"application/json", produce_body},
+      {"text/plain", produce_body}],
+     RD, Ctx}.
 
 -spec produce_body(term(), term()) ->
                           {{'halt', term()}, #wm_reqdata{}, term()}.

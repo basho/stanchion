@@ -48,44 +48,44 @@
            {median, bucket_create_time_median},
            {95    , bucket_create_time_95},
            {99    , bucket_create_time_99},
-           {100   , bucket_create_time_100}]},
+           {max   , bucket_create_time_100}]},
          {[bucket, delete, time], histogram, [],
           [{mean  , bucket_delete_time_mean},
            {median, bucket_delete_time_median},
            {95    , bucket_delete_time_95},
            {99    , bucket_delete_time_99},
-           {100   , bucket_delete_time_100}]},
+           {max   , bucket_delete_time_100}]},
          {[bucket, put_acl, time], histogram, [],
           [{mean  , bucket_put_acl_time_mean},
            {median, bucket_put_acl_time_median},
            {95    , bucket_put_acl_time_95},
            {99    , bucket_put_acl_time_99},
-           {100   , bucket_put_acl_time_100}]},
+           {max   , bucket_put_acl_time_100}]},
 
          {[user, create], spiral, [],
-          [{one, user_create}, {count, user_create_total}]},
+          [{one, user_creates}, {count, user_creates_total}]},
          {[user, update], spiral, [],
-          [{one, user_update}, {count, user_update_total}]},
+          [{one, user_updates}, {count, user_updates_total}]},
 
          {[user, create, time], histogram, [],
           [{mean  , user_create_time_mean},
            {median, user_create_time_median},
            {95    , user_create_time_95},
            {99    , user_create_time_99},
-           {100   , user_create_time_100}]},
+           {max   , user_create_time_100}]},
          {[user, update, time], histogram, [],
           [{mean  , user_update_time_mean},
            {median, user_update_time_median},
            {95    , user_update_time_95},
            {99    , user_update_time_99},
-           {100   , user_update_time_100}]},
+           {max   , user_update_time_100}]},
          
          {[waiting, time], histogram, [],
           [{mean  , waiting_time_mean},
            {median, waiting_time_median},
            {95    , waiting_time_95},
            {99    , waiting_time_99},
-           {100   , waiting_time_100}]}
+           {max   , waiting_time_100}]}
         ]).
 
 %% ====================================================================
@@ -127,7 +127,7 @@ report_json() ->
 get_stats() ->
     Stats1 = [raw_report_item(I) || I <- ?METRICS],
     Stats2 = [{stanchion_server_msg_q_len, stanchion_server:msg_q_len()}],
-    lists:flatten(Stats2 ++ Stats1).
+    Stats2 ++ lists:flatten(Stats1).
 
 init() ->
     _ = [init_item(I) || I <- ?METRICS],
@@ -158,7 +158,7 @@ stats_metric_test() ->
              time ->
                  ?assertEqual(histogram, Type),
                  [?assert(proplists:is_defined(M, Aliases))
-                  || M <- [mean, median, 95, 99, 100]];
+                  || M <- [mean, median, 95, 99, max]];
              _ ->
                  ?assertNotEqual(false, lists:keyfind(Key, 1, ?METRICS)),
                  ?assertEqual(spiral, Type),
@@ -194,9 +194,7 @@ stats_test_() ->
                           ?assertEqual([1, 1],
                                        [N || {_, N} <- Items]);
                       5 ->
-                          %% TODO: some_metric_100 also should be 16#deadebeef
-                          %% something is wrong now, also in riak_cs
-                          ?assertEqual([16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef, 0],
+                          ?assertEqual([16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef],
                                        [N || {_, N} <- Items])
                   end
               end || I <- ?METRICS]
