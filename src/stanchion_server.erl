@@ -73,7 +73,7 @@
             {{Result_____, ServiceTime____},
              TATus_____} = ?TURNAROUND_TIME(Call),
             WaitingTime____ = TATus_____ - ServiceTime____,
-            lager:info("~p ~p ~p", [Name, Result_____, ServiceTime____]),
+            _ = lager:debug("~p ~p ~p", [Name, Result_____, ServiceTime____]),
             stanchion_stats:update(Name, ServiceTime____, WaitingTime____),
             Result_____
         end).
