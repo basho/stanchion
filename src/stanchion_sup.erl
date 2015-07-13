@@ -53,6 +53,8 @@ init([]) ->
         undefined -> {"0.0.0.0", 80}
     end,
 
+    stanchion_stats:init(),
+    
     %% Create child specifications
     WebConfig1 = [
                  {dispatch, stanchion_web:dispatch_table()},

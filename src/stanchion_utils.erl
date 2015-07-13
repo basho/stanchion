@@ -115,20 +115,26 @@ create_user(UserFields) ->
     CanonicalId = binary_to_list(proplists:get_value(<<"id">>, UserFields, <<>>)),
     case riak_connection() of
         {ok, RiakPid} ->
-            case email_available(Email, RiakPid) of
-                true ->
-                    User = ?MOSS_USER{name=UserName,
-                                      display_name=DisplayName,
-                                      email=binary_to_list(Email),
-                                      key_id=KeyId,
-                                      key_secret=KeySecret,
-                                      canonical_id=CanonicalId},
-                    Res = save_user(User, RiakPid);
-                {false, Reason1} ->
-                    Res = {error, Reason1}
-            end,
-            close_riak_connection(RiakPid),
-            Res;
+            try
+                case email_available(Email, RiakPid) of
+                    true ->
+                        User = ?MOSS_USER{name=UserName,
+                                          display_name=DisplayName,
+                                          email=binary_to_list(Email),
+                                          key_id=KeyId,
+                                          key_secret=KeySecret,
+                                          canonical_id=CanonicalId},
+                        save_user(User, RiakPid);
+                    {false, Reason1} ->
+                        {error, Reason1}
+                end
+            catch T:E ->
+                    _ = lager:error("Error on creating user ~s: ~p",
+                                    [KeyId, {T, E}]),
+                    {error, {T, E}}
+            after
+                close_riak_connection(RiakPid)
+            end;
         {error, _} = Else ->
             Else
     end.
@@ -425,11 +431,9 @@ to_bucket_name(Type, Bucket) ->
 -spec update_user(string(), [{term(), term()}]) ->
                          ok | {error, riak_connect_failed() | term()}.
 update_user(KeyId, UserFields) ->
-
     case riak_connection() of
         {ok, RiakPid} ->
-
-            Res =
+            try
                 case get_user(KeyId, RiakPid) of
                     {ok, {User, UserObj}} ->
 
@@ -441,9 +445,14 @@ update_user(KeyId, UserFields) ->
                                   RiakPid);
                     {error, _}=Error ->
                         Error
-                end,
-            close_riak_connection(RiakPid),
-            Res;
+                end
+            catch T:E ->
+                    _ = lager:error("Error on updating user ~s: ~p",
+                                    [KeyId, {T, E}]),
+                    {error, {T, E}}
+            after
+                close_riak_connection(RiakPid)
+            end;
         {error, _} = Else ->
             Else
     end.
@@ -587,21 +596,27 @@ do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
         {ok, RiakPid} ->
             %% Buckets operations can only be completed if the bucket exists
             %% and the requesting party owns the bucket.
-            Res = case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
-                      {true, BucketObj} ->
-                          Value = case BucketOp of
-                                      create ->        OwnerId;
-                                      update_acl ->    OwnerId;
-                                      update_policy -> OwnerId;
-                                      delete_policy -> OwnerId;
-                                      delete ->        ?FREE_BUCKET_MARKER
-                                  end,
-                          put_bucket(BucketObj, Value, Opts, RiakPid);
-                      {false, Reason1} ->
-                          {error, Reason1}
-                  end,
-            close_riak_connection(RiakPid),
-            Res;
+            try
+                case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
+                    {true, BucketObj} ->
+                        Value = case BucketOp of
+                                    create ->        OwnerId;
+                                    update_acl ->    OwnerId;
+                                    update_policy -> OwnerId;
+                                    delete_policy -> OwnerId;
+                                    delete ->        ?FREE_BUCKET_MARKER
+                                end,
+                        put_bucket(BucketObj, Value, Opts, RiakPid);
+                    {false, Reason1} ->
+                        {error, Reason1}
+                end
+            catch T:E ->
+                    _ = lager:error("Error on updating bucket ~s: ~p",
+                                    [Bucket, {T, E}]),
+                    {error, {T, E}}
+            after
+                close_riak_connection(RiakPid)
+            end;
         {error, _} = Else ->
             Else
     end.
