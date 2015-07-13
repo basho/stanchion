@@ -42,7 +42,7 @@
          set_bucket_acl/2,
          stop/1,
          update_user/2,
-         msg_q_len/0]).
+         msgq_len/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -91,9 +91,9 @@ start_link() ->
 -spec create_bucket([{term(), term()}]) -> ok | {error, term()}.
 create_bucket(BucketData) ->
     ?MEASURE([bucket, create],
-             (gen_server:call(?MODULE,
-                              {create_bucket, BucketData},
-                              infinity))).
+             gen_server:call(?MODULE,
+                             {create_bucket, BucketData},
+                             infinity)).
 
 %% @doc Attempt to create a bucket
 -spec create_user([{term(), term()}]) ->
@@ -101,25 +101,26 @@ create_bucket(BucketData) ->
                          {error, term()} |
                          {error, stanchion_utils:riak_connect_failed()}.
 create_user(UserData) ->
-    ?MEASURE([user, create], (gen_server:call(?MODULE,
-                                              {create_user, UserData},
-                                              infinity))).
+    ?MEASURE([user, create],
+             gen_server:call(?MODULE,
+                             {create_user, UserData},
+                             infinity)).
 
 %% @doc Attempt to delete a bucket
 -spec delete_bucket(binary(), binary()) -> ok | {error, term()}.
 delete_bucket(Bucket, UserId) ->
     ?MEASURE([bucket, delete],
-             (gen_server:call(?MODULE,
-                              {delete_bucket, Bucket, UserId},
-                              infinity))).
+             gen_server:call(?MODULE,
+                             {delete_bucket, Bucket, UserId},
+                             infinity)).
 
 %% @doc Set the ACL for a bucket
 -spec set_bucket_acl(binary(), term()) -> ok | {error, term()}.
 set_bucket_acl(Bucket, FieldList) ->
     ?MEASURE([bucket, put_acl],
-             (gen_server:call(?MODULE,
-                              {set_acl, Bucket, FieldList},
-                              infinity))).
+             gen_server:call(?MODULE,
+                             {set_acl, Bucket, FieldList},
+                             infinity)).
 
 stop(Pid) ->
     gen_server:cast(Pid, stop).
@@ -131,12 +132,12 @@ stop(Pid) ->
                          {error, stanchion_utils:riak_connect_failed()}.
 update_user(KeyId, UserData) ->
     ?MEASURE([user, update],
-             (gen_server:call(?MODULE,
-                              {update_user, KeyId, UserData},
-                              infinity))).
+             gen_server:call(?MODULE,
+                             {update_user, KeyId, UserData},
+                             infinity)).
 
--spec msg_q_len() -> non_neg_integer().
-msg_q_len() ->
+-spec msgq_len() -> non_neg_integer().
+msgq_len() ->
     Pid = whereis(?MODULE),
     {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
     Len.

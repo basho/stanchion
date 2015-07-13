@@ -126,8 +126,8 @@ report_json() ->
 -spec get_stats() -> proplists:proplist().
 get_stats() ->
     Stats1 = [raw_report_item(I) || I <- ?METRICS],
-    Stats2 = [{stanchion_server_msg_q_len, stanchion_server:msg_q_len()}],
-    Stats2 ++ lists:flatten(Stats1).
+    Stats2 = [{stanchion_server_msgq_len, stanchion_server:msgq_len()}],
+    lists:flatten(Stats2 ++ Stats1).
 
 init() ->
     _ = [init_item(I) || I <- ?METRICS],
