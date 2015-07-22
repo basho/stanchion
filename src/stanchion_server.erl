@@ -56,16 +56,6 @@
                 riak_port :: pos_integer()}).
 -type state() :: #state{}.
 
--define(TURNAROUND_TIME(Call),
-        begin
-            StartTime_____tat = os:timestamp(),
-            Result_____tat  = (Call),
-            EndTime_____tat = os:timestamp(),
-            {Result_____tat,
-             timer:now_diff(EndTime_____tat,
-                            StartTime_____tat)}
-        end).
-
 %% This ?TURNAROUND_TIME has another ?TURNAROUND_TIME at gen_server
 %% process, to measure both waiting time and service time.
 -define(MEASURE(Name, Call),
