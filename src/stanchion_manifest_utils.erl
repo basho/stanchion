@@ -35,9 +35,6 @@
          overwritten_UUIDs/1,
          mark_pending_delete/2,
          mark_scheduled_delete/2,
-         filter_pending_delete_uuid_manifests/1,
-         prune/1,
-         prune/2,
          upgrade_wrapped_manifests/1,
          upgrade_manifest/1]).
 
@@ -133,24 +130,6 @@ mark_scheduled_delete(Dict, UUIDsToMark) ->
     end,
     orddict:map(MapFun, Dict).
 
-%% @doc Return the current `pending_delete' manifests
-%% from an orddict of manifests.
--spec filter_pending_delete_uuid_manifests(orddict:orddict()) -> [cs_uuid_and_manifest()].
-filter_pending_delete_uuid_manifests(Dict) ->
-    orddict:to_list(orddict:filter(fun pending_delete_manifest/2, Dict)).
-
-%% @doc Remove all manifests that require pruning,
-%%      see needs_pruning() for definition of needing pruning.
--spec prune(orddict:orddict()) -> orddict:orddict().
-prune(Dict) ->
-    prune(Dict, erlang:now()).
-
--spec prune(orddict:orddict(), erlang:timestamp()) -> orddict:orddict().
-prune(Dict, Time) ->
-    orddict:from_list(
-      [KV || {_K, V}=KV <- orddict:to_list(Dict), not (needs_pruning(V, Time))]
-     ).
-
 -spec upgrade_wrapped_manifests([orddict:orddict()]) -> [orddict:orddict()].
 upgrade_wrapped_manifests(ListofOrdDicts) ->
     DictMapFun = fun (_Key, Value) -> upgrade_manifest(Value) end,
@@ -232,32 +211,3 @@ most_recent_active_manifest(Man1=?MANIFEST{state=active}, Man2=?MANIFEST{state=a
     end;
 most_recent_active_manifest(Man1=?MANIFEST{state=active}, _Man2) -> Man1;
 most_recent_active_manifest(_Man1, Man2=?MANIFEST{state=active}) -> Man2.
-
--spec needs_pruning(lfs_manifest(), erlang:timestamp()) -> boolean().
-needs_pruning(?MANIFEST{state=scheduled_delete,
-                              scheduled_delete_time=ScheduledDeleteTime}, Time) ->
-    seconds_diff(Time, ScheduledDeleteTime) > riak_cs_gc:leeway_seconds();
-needs_pruning(_Manifest, _Time) ->
-    false.
-
-%% NOTE: This is a orddict filter fun.
-pending_delete_manifest(_, ?MANIFEST{state=pending_delete,
-                                     last_block_deleted_time=undefined}) ->
-    true;
-pending_delete_manifest(_, ?MANIFEST{last_block_deleted_time=undefined}) ->
-    false;
-pending_delete_manifest(_, ?MANIFEST{state=scheduled_delete,
-                                     last_block_deleted_time=LBDTime}) ->
-    %% If a manifest is `scheduled_delete' and the amount of time
-    %% specified by the retry interval has elapsed since a file block
-    %% was last deleted, then reschedule it for deletion.
-    LBDSeconds = riak_moss_utils:timestamp(LBDTime),
-    Now = riak_moss_utils:timestamp(os:timestamp()),
-    Now > (LBDSeconds + riak_cs_gc:gc_retry_interval());
-pending_delete_manifest(_, _) ->
-    false.
-
-seconds_diff(T2, T1) ->
-    TimeDiffMicrosends = timer:now_diff(T2, T1),
-    SecondsTime = TimeDiffMicrosends / (1000 * 1000),
-    erlang:trunc(SecondsTime).
