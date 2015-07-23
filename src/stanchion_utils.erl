@@ -32,6 +32,7 @@
          get_admin_creds/0,
          get_keys_and_values/1,
          get_manifests/3,
+         get_manifests_raw/3,
          has_tombstone/1,
          pow/2,
          pow/3,
@@ -598,6 +599,10 @@ is_bucket_clean(Bucket, RiakPid, BucketObj) ->
                         {true, BucketObj}
                 end
         end
+    catch T:E ->
+            _ = lager:error("Could not check whether bucket was empty. Reason: ~p:~p - ~p",
+                            [T,E,erlang:get_stacktrace()]),
+            error({T, E})
     after
         close_manifest_connection(RiakPid, ManifestRiakPid)
     end.
