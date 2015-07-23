@@ -24,12 +24,10 @@
          service_available/2,
          allowed_methods/2,
          is_authorized/2,
-         content_types_provided/2,
+         content_types_accepted/2,
          post_is_create/2,
          create_path/2,
-         content_types_accepted/2,
-         accept_body/2,
-         to_xml/2]).
+         accept_body/2]).
 
 -include("stanchion.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
@@ -63,14 +61,6 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
                     stanchion_response:api_error(access_denied, RD, Ctx)
             end
     end.
-
--spec content_types_provided(term(), term()) ->
-                                    {[{string(), atom()}],
-                                     term(),
-                                     term()}.
-content_types_provided(RD, Ctx) ->
-    %% @TODO Add JSON support
-    {[{"application/xml", to_xml}], RD, Ctx}.
 
 -spec post_is_create(term(), term()) -> {true, term(), term()}.
 post_is_create(_RD, _Ctx) ->
