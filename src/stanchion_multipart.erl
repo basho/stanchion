@@ -185,7 +185,6 @@
 check_no_multipart_uploads(Bucket, RiakPid) ->
     HashBucket = stanchion_utils:to_bucket_name(objects, Bucket),
 
-
     {{ok, Keys}, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:list_keys(RiakPid, HashBucket)),
     stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
 

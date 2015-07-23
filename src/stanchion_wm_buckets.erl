@@ -47,7 +47,7 @@ service_available(RD, Ctx) ->
 %% @doc Get the list of methods this resource supports.
 -spec allowed_methods(term(), term()) -> {[atom()], term(), term()}.
 allowed_methods(RD, Ctx) ->
-    {['GET', 'POST'], RD, Ctx}.
+    {['POST'], RD, Ctx}.
 
 %% @doc Check that the request is from the admin user
 is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
@@ -104,19 +104,6 @@ accept_body(RD, Ctx) ->
     case stanchion_server:create_bucket(FieldList) of
         ok ->
             {true, RD, Ctx};
-        {error, Reason} ->
-            stanchion_response:api_error(Reason, RD, Ctx)
-    end.
-
--spec to_xml(#wm_reqdata{}, term()) ->
-                    {tuple(), #wm_reqdata{}, term()}.
-to_xml(RD, Ctx) ->
-    OwnerId = list_to_binary(wrq:get_qs_value("owner", "", RD)),
-    case stanchion_utils:get_buckets(OwnerId) of
-        {ok, BucketData} ->
-            stanchion_response:list_buckets_response(BucketData,
-                                                     RD,
-                                                     Ctx);
         {error, Reason} ->
             stanchion_response:api_error(Reason, RD, Ctx)
     end.

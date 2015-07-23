@@ -30,7 +30,6 @@
          delete_bucket/2,
          from_bucket_name/1,
          get_admin_creds/0,
-         get_buckets/1,
          get_keys_and_values/1,
          get_manifests/3,
          has_tombstone/1,
@@ -169,19 +168,6 @@ get_admin_creds() ->
         undefined ->
             _ = lager:warning("The admin user's key id has not been defined."),
             {error, key_id_undefined}
-    end.
-
-%% @doc Return a user's buckets.
--spec get_buckets(all | binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
-get_buckets(<<>>) ->
-    get_keys_and_values(?BUCKETS_BUCKET);
-get_buckets(OwnerId) ->
-    case get_keys_and_values(?BUCKETS_BUCKET) of
-        {ok, KeyValuePairs} ->
-            {ok, [{Key, Value} || {Key, Value} <- KeyValuePairs,
-                                  Value == OwnerId]};
-        {error, Reason} ->
-            {error, Reason}
     end.
 
 %% @doc
@@ -718,7 +704,7 @@ get_keys_and_values(BucketName) ->
 get_manifests_raw(RiakcPid, Bucket, Key) ->
     ManifestBucket = to_bucket_name(objects, Bucket),
     {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakcPid, ManifestBucket, Key)),
-    stanchion_stats:update([riakc, get_manifests], TAT),
+    stanchion_stats:update([riakc, get_manifest], TAT),
     Res.
 
 %% @doc Extract the value from a Riak object.
