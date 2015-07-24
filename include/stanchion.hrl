@@ -88,3 +88,13 @@
 -define(MD_ACL, <<"X-Moss-Acl">>).
 -define(MD_POLICY, <<"X-Rcs-Policy">>).
 -define(MD_BAG, <<"X-Rcs-Bag">>).
+
+-define(TURNAROUND_TIME(Call),
+        begin
+            StartTime_____tat = os:timestamp(),
+            Result_____tat  = (Call),
+            EndTime_____tat = os:timestamp(),
+            {Result_____tat,
+             timer:now_diff(EndTime_____tat,
+                            StartTime_____tat)}
+        end).

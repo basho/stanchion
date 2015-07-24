@@ -31,62 +31,47 @@
 
 -export([init/0]).
 
--type metric_name() :: list(atom()).
--export_type([metric_name/0]).
+-type key() :: [atom()].
+-export_type([key/0]).
 
--define(METRICS,
-        %% [{metric_name(), exometer:type(), [exometer:option()], Aliases}]
-        [{[bucket, create], spiral, [],
-          [{one, bucket_creates}, {count, bucket_creates_total}]},
-         {[bucket, delete], spiral, [],
-          [{one, bucket_deletes}, {count, bucket_deletes_total}]},
-         {[bucket, put_acl], spiral, [],
-          [{one, bucket_put_acl}, {count, bucket_put_acl_total}]},
+-spec duration_metrics() -> [key()].
+duration_metrics() ->
+    [
+     [bucket, create],
+     [bucket, delete],
+     [bucket, put_acl],
+     [user, create],
+     [user, update],
 
-         {[bucket, create, time], histogram, [],
-          [{mean  , bucket_create_time_mean},
-           {median, bucket_create_time_median},
-           {95    , bucket_create_time_95},
-           {99    , bucket_create_time_99},
-           {max   , bucket_create_time_100}]},
-         {[bucket, delete, time], histogram, [],
-          [{mean  , bucket_delete_time_mean},
-           {median, bucket_delete_time_median},
-           {95    , bucket_delete_time_95},
-           {99    , bucket_delete_time_99},
-           {max   , bucket_delete_time_100}]},
-         {[bucket, put_acl, time], histogram, [],
-          [{mean  , bucket_put_acl_time_mean},
-           {median, bucket_put_acl_time_median},
-           {95    , bucket_put_acl_time_95},
-           {99    , bucket_put_acl_time_99},
-           {max   , bucket_put_acl_time_100}]},
+     %% Riak PB client, per key operations
+     [riakc, ping],
+     [riakc, get_cs_bucket],
+     [riakc, put_cs_bucket], %% Always strong put
+     [riakc, delete_cs_bucket],
+     [riakc, get_cs_user_strong],
+     [riakc, get_cs_user],
+     [riakc, put_cs_user],
 
-         {[user, create], spiral, [],
-          [{one, user_creates}, {count, user_creates_total}]},
-         {[user, update], spiral, [],
-          [{one, user_updates}, {count, user_updates_total}]},
+     [riakc, get_manifest],
 
-         {[user, create, time], histogram, [],
-          [{mean  , user_create_time_mean},
-           {median, user_create_time_median},
-           {95    , user_create_time_95},
-           {99    , user_create_time_99},
-           {max   , user_create_time_100}]},
-         {[user, update, time], histogram, [],
-          [{mean  , user_update_time_mean},
-           {median, user_update_time_median},
-           {95    , user_update_time_95},
-           {99    , user_update_time_99},
-           {max   , user_update_time_100}]},
-         
-         {[waiting, time], histogram, [],
-          [{mean  , waiting_time_mean},
-           {median, waiting_time_median},
-           {95    , waiting_time_95},
-           {99    , waiting_time_99},
-           {max   , waiting_time_100}]}
-        ]).
+     %% Riak PB client, coverage operations
+     [riakc, list_all_user_keys],
+     [riakc, list_all_manifest_keys],
+     [riakc, list_users_receive_chunk],
+     [riakc, get_user_by_index],
+     [riakc, get_gc_keys_by_index],
+     [riakc, get_cs_buckets_by_index]
+    ].
+
+duration_only_metrics() ->
+    [[waiting]].
+
+duration_subkeys() ->
+    [{[], spiral},
+     {[time], histogram}].
+
+duration_only_subkeys() ->
+    [{[time], histogram}].
 
 %% ====================================================================
 %% API
@@ -94,7 +79,7 @@
 
 
 
--spec safe_update(metric_name(), integer()) -> ok | {error, any()}.
+-spec safe_update(key(), integer()) -> ok | {error, any()}.
 safe_update(BaseId, ElapsedUs) ->
     %% Just in case those metrics happen to be not registered; should
     %% be a bug and also should not interrupt handling requests by
@@ -105,16 +90,17 @@ safe_update(BaseId, ElapsedUs) ->
             lager:error("Failed on storing some metrics: ~p,~p", [T,E])
     end.
 
--spec update(metric_name(), integer()) -> ok | {error, any()}.
+-spec update(key(), integer()) -> ok | {error, any()}.
 update(BaseId, ElapsedUs) ->
+    _ = lager:debug("Updating ~p (~p)", [BaseId, ElapsedUs]),
     ok = exometer:update([stanchion|BaseId], 1),
-    ok = exometer:update([stanchion|BaseId]++[time], ElapsedUs).
+    ok = exometer:update([stanchion,time|BaseId], ElapsedUs).
 
 update(BaseId, ServiceTime, WaitingTime) ->
     update(BaseId, ServiceTime),
-    ok = exometer:update([stanchion, waiting, time], WaitingTime).
+    ok = exometer:update([stanchion, time, waiting], WaitingTime).
 
--spec update_with_start(metric_name(), erlang:timestamp()) ->
+-spec update_with_start(key(), erlang:timestamp()) ->
                                    ok | {error, any()}.
 update_with_start(BaseId, StartTime) ->
     update(BaseId, timer:now_diff(os:timestamp(), StartTime)).
@@ -123,29 +109,119 @@ update_with_start(BaseId, StartTime) ->
 report_json() ->
     lists:flatten(mochijson2:encode({struct, get_stats()})).
 
+all_metrics() ->
+    Metrics0 = [{Subkey ++ Metric, Type, [], []}
+                || Metric <- duration_only_metrics(),
+                   {Subkey, Type} <- duration_only_subkeys()],
+    Metrics1 = [{Subkey ++ Metric, Type, [], []}
+               || Metric <- duration_metrics(),
+                  {Subkey, Type} <- duration_subkeys()],
+    Metrics0 ++ Metrics1.
+
 -spec get_stats() -> proplists:proplist().
 get_stats() ->
-    Stats1 = [raw_report_item(I) || I <- ?METRICS],
-    Stats2 = [{stanchion_server_msgq_len, stanchion_server:msgq_len()}],
-    lists:flatten(Stats2 ++ Stats1).
+    DurationStats =
+        [report_exometer_item(Key, SubKey, ExometerType) ||
+            Key <- duration_metrics(),
+            {SubKey, ExometerType} <- duration_subkeys()],
+    DurationOnlyStats =
+        [report_exometer_item(Key, SubKey, ExometerType) ||
+            Key <- duration_only_metrics(),
+            {SubKey, ExometerType} <- duration_only_subkeys()],
+    MsgStats = [{stanchion_server_msgq_len, stanchion_server:msgq_len()}],
+    lists:flatten([DurationStats, MsgStats, DurationOnlyStats,
+                   report_mochiweb(), report_memory(),
+                   report_system()]).
 
 init() ->
-    _ = [init_item(I) || I <- ?METRICS],
+    _ = [init_item(I) || I <- all_metrics()],
     ok.
 
 %% ====================================================================
 %% Internal
 %% ====================================================================
 
-init_item({Name, Type, Opts, Aliases}) ->
-    ok = exometer:re_register([stanchion|Name], Type,
-                              [{aliases, Aliases}|Opts]).
+init_item({Name, Type, Opts, _Aliases}) ->
+    ok = exometer:re_register([stanchion|Name], Type, Opts).
 
-raw_report_item({Name, _Type, _Options, Aliases}) ->
+-spec report_exometer_item(key(), [atom()], exometer:type()) -> [{atom(), integer()}].
+report_exometer_item(Key, SubKey, ExometerType) ->
+    _ = lager:debug("~p", [{Key, SubKey, ExometerType}]),
+    AtomKeys = [metric_to_atom(Key ++ SubKey, Suffix) ||
+                   Suffix <- suffixes(ExometerType)],
+    {ok, Values} = exometer:get_value([stanchion | SubKey ++ Key],
+                                      datapoints(ExometerType)),
+    [{AtomKey, Value} ||
+        {AtomKey, {_DP, Value}} <- lists:zip(AtomKeys, Values)].
 
-    {ok, Values} = exometer:get_value([stanchion|Name], [D||{D,_Alias}<-Aliases]),
-    [{Alias, Value} ||
-        {{D, Alias}, {D, Value}} <- lists:zip(Aliases, Values)].
+datapoints(histogram) ->
+    [mean, median, 95, 99, max];
+datapoints(spiral) ->
+    [one, count].
+
+suffixes(histogram) ->
+    ["mean", "median", "95", "99", "100"];
+suffixes(spiral) ->
+    ["one", "total"].
+
+-spec report_mochiweb() -> [[{atom(), integer()}]].
+report_mochiweb() ->
+    [report_mochiweb(webmachine_mochiweb)].
+
+report_mochiweb(Id) ->
+    Children = supervisor:which_children(stanchion_sup),
+    case lists:keyfind(Id, 1, Children) of
+        false -> [];
+        {_, Pid, _, _} -> report_mochiweb(Id, Pid)
+    end.
+
+report_mochiweb(Id, Pid) ->
+    [{metric_to_atom([Id], PropKey), gen_server:call(Pid, {get, PropKey})} ||
+        PropKey <- [active_sockets, waiting_acceptors, port]].
+
+-spec report_memory() -> [{atom(), integer()}].
+report_memory() ->
+    lists:map(fun({K, V}) -> {metric_to_atom([memory], K), V} end, erlang:memory()).
+
+-spec report_system() -> [{atom(), integer()}].
+report_system() ->
+    [{nodename, erlang:node()},
+     {connected_nodes, erlang:nodes()},
+     {sys_driver_version, list_to_binary(erlang:system_info(driver_version))},
+     {sys_heap_type, erlang:system_info(heap_type)},
+     {sys_logical_processors, erlang:system_info(logical_processors)},
+     {sys_monitor_count, system_monitor_count()},
+     {sys_otp_release, list_to_binary(erlang:system_info(otp_release))},
+     {sys_port_count, erlang:system_info(port_count)},
+     {sys_process_count, erlang:system_info(process_count)},
+     {sys_smp_support, erlang:system_info(smp_support)},
+     {sys_system_version, system_version()},
+     {sys_system_architecture, system_architecture()},
+     {sys_threads_enabled, erlang:system_info(threads)},
+     {sys_thread_pool_size, erlang:system_info(thread_pool_size)},
+     {sys_wordsize, erlang:system_info(wordsize)}].
+
+system_monitor_count() ->
+    lists:foldl(fun(Pid, Count) ->
+                        case erlang:process_info(Pid, monitors) of
+                            {monitors, Mons} ->
+                                Count + length(Mons);
+                            _ ->
+                                Count
+                        end
+                end, 0, processes()).
+
+system_version() ->
+    list_to_binary(string:strip(erlang:system_info(system_version), right, $\n)).
+
+system_architecture() ->
+    list_to_binary(erlang:system_info(system_architecture)).
+
+metric_to_atom(Key, Suffix) when is_atom(Suffix) ->
+    metric_to_atom(Key, atom_to_list(Suffix));
+metric_to_atom(Key, Suffix) ->
+    StringKey = string:join([atom_to_list(Token) || Token <- Key], "_"),
+    list_to_atom(lists:flatten([StringKey, $_, Suffix])).
 
 -ifdef(TEST).
 
@@ -153,20 +229,15 @@ raw_report_item({Name, _Type, _Options, Aliases}) ->
 
 stats_metric_test() ->
     [begin
-         ?debugVal(Key),
-         case lists:last(Key) of
+         case hd(Key) of
              time ->
-                 ?assertEqual(histogram, Type),
-                 [?assert(proplists:is_defined(M, Aliases))
-                  || M <- [mean, median, 95, 99, max]];
+                 ?assertEqual(histogram, Type);
              _ ->
-                 ?assertNotEqual(false, lists:keyfind(Key, 1, ?METRICS)),
-                 ?assertEqual(spiral, Type),
-                 ?assert(proplists:is_defined(one, Aliases)),
-                 ?assert(proplists:is_defined(count, Aliases))
+                 ?assertNotEqual(false, lists:keyfind(Key, 1, all_metrics())),
+                 ?assertEqual(spiral, Type)
          end,
          ?assertEqual([], Options)
-     end || {Key, Type, Options, Aliases} <- ?METRICS].
+     end || {Key, Type, Options, _} <- all_metrics()].
 
 stats_test_() ->
     Apps = [setup, compiler, syntax_tools, goldrush, lager, exometer_core],
@@ -180,24 +251,23 @@ stats_test_() ->
      end,
      [{inparallel, [fun() ->
                             %% ?debugVal(Key),
-                            case lists:last(Key) of
+                            case hd(Key) of
                                 time -> ok;
                                 _ -> stanchion_stats:update(Key, 16#deadbeef, 16#deadbeef)
                             end
-                    end || {Key, _, _, _} <- ?METRICS]},
+                    end || {Key, _, _, _} <- all_metrics()]},
      fun() ->
              [begin
-                  Items = raw_report_item(I),
-                  ?debugVal(Items),
-                  case length(Items) of
-                      2 ->
-                          ?assertEqual([1, 1],
-                                       [N || {_, N} <- Items]);
-                      5 ->
-                          ?assertEqual([16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef],
-                                       [N || {_, N} <- Items])
-                  end
-              end || I <- ?METRICS]
+                  ?debugVal(Key),
+                  CountItems = report_exometer_item(Key, [], spiral),
+                  DurationItems = report_exometer_item(Key, [time], histogram),
+                  ?debugVal(CountItems),
+                  ?debugVal(DurationItems),
+                  ?assertMatch([1, 1],
+                               [N || {_, N} <- CountItems]),
+                  ?assertMatch([16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef, 16#deadbeef],
+                               [N || {_, N} <- DurationItems])
+              end || Key <- duration_metrics()]
      end]}.
 
 -endif.

@@ -184,11 +184,14 @@
 
 check_no_multipart_uploads(Bucket, RiakPid) ->
     HashBucket = stanchion_utils:to_bucket_name(objects, Bucket),
-    {ok, Keys} = riakc_pb_socket:list_keys(RiakPid, HashBucket),
+
+    {{ok, Keys}, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:list_keys(RiakPid, HashBucket)),
+    stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
 
     %% check all up
     lists:all(fun(Key) ->
-                      has_no_upload(riakc_pb_socket:get(RiakPid, HashBucket, Key))
+                      GetResult = stanchion_utils:get_manifests_raw(RiakPid, Bucket, Key),
+                      has_no_upload(GetResult)
               end, Keys).
 
 has_no_upload({ok, Obj}) ->

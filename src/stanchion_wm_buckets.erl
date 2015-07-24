@@ -24,12 +24,10 @@
          service_available/2,
          allowed_methods/2,
          is_authorized/2,
-         content_types_provided/2,
+         content_types_accepted/2,
          post_is_create/2,
          create_path/2,
-         content_types_accepted/2,
-         accept_body/2,
-         to_xml/2]).
+         accept_body/2]).
 
 -include("stanchion.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
@@ -47,7 +45,7 @@ service_available(RD, Ctx) ->
 %% @doc Get the list of methods this resource supports.
 -spec allowed_methods(term(), term()) -> {[atom()], term(), term()}.
 allowed_methods(RD, Ctx) ->
-    {['GET', 'POST'], RD, Ctx}.
+    {['POST'], RD, Ctx}.
 
 %% @doc Check that the request is from the admin user
 is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
@@ -63,14 +61,6 @@ is_authorized(RD, Ctx=#context{auth_bypass=AuthBypass}) ->
                     stanchion_response:api_error(access_denied, RD, Ctx)
             end
     end.
-
--spec content_types_provided(term(), term()) ->
-                                    {[{string(), atom()}],
-                                     term(),
-                                     term()}.
-content_types_provided(RD, Ctx) ->
-    %% @TODO Add JSON support
-    {[{"application/xml", to_xml}], RD, Ctx}.
 
 -spec post_is_create(term(), term()) -> {true, term(), term()}.
 post_is_create(_RD, _Ctx) ->
@@ -104,19 +94,6 @@ accept_body(RD, Ctx) ->
     case stanchion_server:create_bucket(FieldList) of
         ok ->
             {true, RD, Ctx};
-        {error, Reason} ->
-            stanchion_response:api_error(Reason, RD, Ctx)
-    end.
-
--spec to_xml(#wm_reqdata{}, term()) ->
-                    {tuple(), #wm_reqdata{}, term()}.
-to_xml(RD, Ctx) ->
-    OwnerId = list_to_binary(wrq:get_qs_value("owner", "", RD)),
-    case stanchion_utils:get_buckets(OwnerId) of
-        {ok, BucketData} ->
-            stanchion_response:list_buckets_response(BucketData,
-                                                     RD,
-                                                     Ctx);
         {error, Reason} ->
             stanchion_response:api_error(Reason, RD, Ctx)
     end.

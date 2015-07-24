@@ -28,20 +28,14 @@
          create_bucket/1,
          create_user/1,
          delete_bucket/2,
-         delete_object/2,
          from_bucket_name/1,
          get_admin_creds/0,
-         get_buckets/1,
          get_keys_and_values/1,
          get_manifests/3,
-         get_object/2,
-         get_object/3,
+         get_manifests_raw/3,
          has_tombstone/1,
-         list_keys/1,
-         list_keys/2,
          pow/2,
          pow/3,
-         put_object/4,
          riak_connection/0,
          riak_connection/2,
          set_bucket_acl/2,
@@ -144,18 +138,6 @@ create_user(UserFields) ->
 delete_bucket(Bucket, OwnerId) ->
     do_bucket_op(Bucket, OwnerId, [{acl, ?ACL{}}], delete).
 
-%% @doc Delete an object from Riak
--spec delete_object(binary(), binary()) -> ok.
-delete_object(BucketName, Key) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            Res = riakc_pb_socket:delete(RiakPid, BucketName, Key),
-            close_riak_connection(RiakPid),
-            Res;
-        {error, _} = Else ->
-            Else
-    end.
-
 %% Get the root bucket name for either a MOSS object
 %% bucket or the data block bucket name.
 -spec from_bucket_name(binary()) -> {'blocks' | 'objects', binary()}.
@@ -189,19 +171,6 @@ get_admin_creds() ->
             {error, key_id_undefined}
     end.
 
-%% @doc Return a user's buckets.
--spec get_buckets(all | binary()) -> {ok, [{binary(), binary()}]} | {error, term()}.
-get_buckets(<<>>) ->
-    get_keys_and_values(?BUCKETS_BUCKET);
-get_buckets(OwnerId) ->
-    case get_keys_and_values(?BUCKETS_BUCKET) of
-        {ok, KeyValuePairs} ->
-            {ok, [{Key, Value} || {Key, Value} <- KeyValuePairs,
-                                  Value == OwnerId]};
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 %% @doc
 -spec get_manifests(pid(), binary(), binary()) ->
     {ok, term(), term()} | {error, notfound}.
@@ -229,25 +198,6 @@ get_manifests(RiakcPid, Bucket, Key) ->
             NotFound
     end.
 
-%% @doc Get an object from Riak
--spec get_object(binary(), binary()) ->
-                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
-get_object(BucketName, Key) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            Res = get_object(BucketName, Key, RiakPid),
-            close_riak_connection(RiakPid),
-            Res;
-        {error, _} = Else ->
-            Else
-    end.
-
-%% @doc Get an object from Riak
--spec get_object(binary(), binary(), pid()) ->
-                        {ok, riakc_obj:riakc_obj()} | {error, term()}.
-get_object(BucketName, Key, RiakPid) ->
-    riakc_pb_socket:get(RiakPid, BucketName, Key).
-
 %% @doc Determine if a set of contents of a riak object has a tombstone.
 -spec has_tombstone({dict(), binary()}) -> boolean().
 has_tombstone({_, <<>>}) ->
@@ -256,24 +206,14 @@ has_tombstone({MD, _V}) ->
     dict:is_key(<<"X-Riak-Deleted">>, MD) =:= true.
 
 %% @doc List the keys from a bucket
--spec list_keys(binary()) -> {ok, [binary()]} | {error, term()}.
-list_keys(BucketName) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            Res = list_keys(BucketName, RiakPid),
-            close_riak_connection(RiakPid),
-            Res;
-        {error, _} = Else ->
-            Else
-    end.
-
-%% @doc List the keys from a bucket
 -spec list_keys(binary(), pid()) -> {ok, [binary()]} | {error, term()}.
 list_keys(BucketName, RiakPid) ->
-    case riakc_pb_socket:list_keys(RiakPid, BucketName) of
-        {ok, Keys} ->
+    case ?TURNAROUND_TIME(riakc_pb_socket:list_keys(RiakPid, BucketName)) of
+        {{ok, Keys}, TAT} ->
+            stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
             {ok, lists:sort(Keys)};
-        {error, _} = Else ->
+        {{error, _}, TAT} = Else ->
+            stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
             Else
     end.
 
@@ -313,7 +253,9 @@ put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
            end,
     MetaData = make_new_metadata(MD, Opts),
     UpdBucketObj = riakc_obj:update_metadata(UpdBucketObj0, MetaData),
-    riakc_pb_socket:put(RiakPid, UpdBucketObj, PutOptions).
+    {Result, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:put(RiakPid, UpdBucketObj, PutOptions)),
+    stanchion_stats:update([riakc, put_cs_bucket], TAT),
+    Result.
 
 -spec make_new_metadata(dict(), bucket_op_options()) -> dict().
 make_new_metadata(MD, Opts) ->
@@ -337,20 +279,6 @@ make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
 
 replace_meta(Key, NewValue, MetaVals) ->
     [{Key, term_to_binary(NewValue)} | proplists:delete(Key, MetaVals)].
-
-%% @doc Store an object in Riak
--spec put_object(binary(), binary(), binary(), [term()]) -> ok.
-put_object(BucketName, Key, Value, Metadata) ->
-    case riak_connection() of
-        {ok, RiakPid} ->
-            RiakObject = riakc_obj:new(BucketName, Key, Value),
-            NewObj = riakc_obj:update_metadata(RiakObject, Metadata),
-            Res = riakc_pb_socket:put(RiakPid, NewObj),
-            close_riak_connection(RiakPid),
-            Res;
-        {error, _} = Else ->
-            Else
-    end.
 
 %% @doc Get a protobufs connection to the riak cluster
 %% using information from the application environment.
@@ -551,8 +479,9 @@ handle_active_manifests({error, no_active_manifest}) ->
 -spec bucket_available(binary(), fun(), bucket_op(), pid()) -> {true, term()} | {false, atom()}.
 bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
     GetOptions = [{pr, all}],
-    case riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket, GetOptions) of
-        {ok, BucketObj} ->
+    case ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?BUCKETS_BUCKET, Bucket, GetOptions)) of
+        {{ok, BucketObj}, TAT} ->
+            stanchion_stats:update([riakc, get_cs_bucket], TAT),
             OwnerId = riakc_obj:get_value(BucketObj),
             case {OwnerId, BucketOp} of
                 {?FREE_BUCKET_MARKER, create} ->
@@ -568,7 +497,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                     {false, bucket_already_exists}
             end;
 
-        {error, notfound} ->
+        {{error, notfound}, TAT} ->
+            stanchion_stats:update([riakc, get_cs_bucket], TAT),
             case BucketOp of
                 create ->
                     BucketObj = riakc_obj:new(?BUCKETS_BUCKET, Bucket, RequesterId),
@@ -580,7 +510,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                 delete ->
                     {false, no_such_bucket}
             end;
-        {error, Reason} ->
+        {{error, Reason}, TAT} ->
+            stanchion_stats:update([riakc, get_cs_bucket], TAT),
             %% @TODO Maybe bubble up this error info
             _ = lager:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p", [Bucket, Reason]),
             {false, Reason}
@@ -668,6 +599,10 @@ is_bucket_clean(Bucket, RiakPid, BucketObj) ->
                         {true, BucketObj}
                 end
         end
+    catch T:E ->
+            _ = lager:error("Could not check whether bucket was empty. Reason: ~p:~p - ~p",
+                            [T,E,erlang:get_stacktrace()]),
+            error({T, E})
     after
         close_manifest_connection(RiakPid, ManifestRiakPid)
     end.
@@ -733,7 +668,9 @@ close_manifest_connection(_RiakPid, ManifestRiakPid) ->
 %% assurance that a particular email address is available.
 -spec email_available(binary(), pid()) -> true | {false, term()}.
 email_available(Email, RiakPid) ->
-    case riakc_pb_socket:get_index_eq(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email) of
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get_index_eq(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email)),
+    stanchion_stats:update([riakc, get_user_by_index], TAT),
+    case Res of
         {ok, ?INDEX_RESULTS{keys=[]}} ->
             true;
         {ok, _} ->
@@ -771,13 +708,18 @@ get_keys_and_values(BucketName) ->
     {ok, riakc_obj:riakc_obj()} | {error, notfound}.
 get_manifests_raw(RiakcPid, Bucket, Key) ->
     ManifestBucket = to_bucket_name(objects, Bucket),
-    riakc_pb_socket:get(RiakcPid, ManifestBucket, Key).
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakcPid, ManifestBucket, Key)),
+    stanchion_stats:update([riakc, get_manifest], TAT),
+    Res.
 
 %% @doc Extract the value from a Riak object.
 -spec get_value(binary(), binary(), pid()) ->
                        binary().
 get_value(BucketName, Key, RiakPid) ->
-    case get_object(BucketName, Key, RiakPid) of
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, BucketName, Key)),
+    stanchion_stats:update([riakc, get_manifest], TAT),
+    case Res of
+    %% case get_object(BucketName, Key, RiakPid) of
         {ok, RiakObj} ->
             riakc_obj:get_value(RiakObj);
         {error, Reason} ->
@@ -794,7 +736,9 @@ save_user(User, RiakPid) ->
     Obj = riakc_obj:new(?USER_BUCKET, iolist_to_binary(User?MOSS_USER.key_id), term_to_binary(User)),
     UserObj = riakc_obj:update_metadata(Obj, Meta),
     %% @TODO Error handling
-    riakc_pb_socket:put(RiakPid, UserObj).
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:put(RiakPid, UserObj)),
+    stanchion_stats:update([riakc, put_cs_user], TAT),
+    Res.
 
 %% @doc Save information about a Riak CS user
 -spec save_user(boolean(), rcs_user(), riakc_obj:riakc_obj(), pid()) ->
@@ -810,7 +754,9 @@ save_user(true, User=?RCS_USER{email=Email}, UserObj, RiakPid) ->
                            riakc_obj:update_value(UserObj,
                                                   term_to_binary(User)),
                            MD),
-            riakc_pb_socket:put(RiakPid, UpdUserObj);
+            {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:put(RiakPid, UpdUserObj)),
+            stanchion_stats:update([riakc, put_cs_user], TAT),
+            Res;
         {false, Reason} ->
             {error, Reason}
     end;
@@ -822,7 +768,9 @@ save_user(false, User, UserObj, RiakPid) ->
                    riakc_obj:update_value(UserObj,
                                           term_to_binary(User)),
                    MD),
-    riakc_pb_socket:put(RiakPid, UpdUserObj).
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:put(RiakPid, UpdUserObj)),
+    stanchion_stats:update([riakc, put_cs_user], TAT),
+    Res.
 
 %% @doc Retrieve a Riak CS user's information based on their id string.
 -spec get_user('undefined' | list(), pid()) -> {ok, {rcs_user(), riakc_obj:riakc_obj()}} | {error, term()}.
@@ -861,12 +809,17 @@ get_user(KeyId, RiakPid) ->
                         {ok, {term(), boolean()}} | {error, term()}.
 fetch_user(Key, RiakPid) ->
     StrongOptions = [{r, all}, {pr, all}, {notfound_ok, false}],
-    case riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, StrongOptions) of
+    {Res0, TAT0} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, StrongOptions)),
+    stanchion_stats:update([riakc, get_cs_user_strong], TAT0),
+    case Res0 of
         {ok, Obj} ->
             {ok, {Obj, true}};
         {error, _} ->
             WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
-            case riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions) of
+
+            {Res1, TAT1} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions)),
+            stanchion_stats:update([riakc, get_user], TAT1),
+            case Res1 of
                 {ok, Obj} ->
                     {ok, {Obj, false}};
                 {error, Reason} ->
