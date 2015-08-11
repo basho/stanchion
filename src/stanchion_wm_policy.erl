@@ -92,7 +92,7 @@ accept_body(RD, Ctx) ->
     %% @TODO Handle json decoding exceptions
     ParsedBody = mochijson2:decode(Body),
     FieldList = stanchion_wm_utils:json_to_proplist(ParsedBody),
-    case stanchion_utils:set_bucket_policy(Bucket,
+    case stanchion_server:set_bucket_policy(Bucket,
                                            FieldList) of
         ok ->
             {true, RD, Ctx};
@@ -107,7 +107,7 @@ delete_resource(RD, Ctx) ->
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", RD)),
     _ = lager:debug("Bucket: ~p Requester: ~p", [Bucket, RequesterId]),
 
-    case stanchion_utils:delete_bucket_policy(Bucket, RequesterId) of
+    case stanchion_server:delete_bucket_policy(Bucket, RequesterId) of
         ok ->
             % @TODO: does 204 really good? how does s3 works?
             {{halt, 204}, RD, Ctx};

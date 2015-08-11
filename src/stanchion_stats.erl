@@ -40,6 +40,8 @@ duration_metrics() ->
      [bucket, create],
      [bucket, delete],
      [bucket, put_acl],
+     [bucket, set_policy],
+     [bucket, delete_policy],
      [user, create],
      [user, update],
 
