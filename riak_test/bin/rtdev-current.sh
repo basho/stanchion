@@ -14,6 +14,6 @@ mkdir $RTSTANCHION_DEST_DIR/current
 cd $cwd
 cp -a dev $RTSTANCHION_DEST_DIR/current
 cd $RTSTANCHION_DEST_DIR
-git add .
-git commit -a -m "riak_test init" --amend
+git add --all .
+git commit -a -m "riak_test init" --amend > /dev/null
 
