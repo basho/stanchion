@@ -40,27 +40,21 @@ duration_metrics() ->
      [bucket, create],
      [bucket, delete],
      [bucket, put_acl],
+     [bucket, set_policy],
+     [bucket, delete_policy],
      [user, create],
      [user, update],
 
      %% Riak PB client, per key operations
-     [riakc, ping],
      [riakc, get_cs_bucket],
      [riakc, put_cs_bucket], %% Always strong put
-     [riakc, delete_cs_bucket],
      [riakc, get_cs_user_strong],
-     [riakc, get_cs_user],
      [riakc, put_cs_user],
-
      [riakc, get_manifest],
 
      %% Riak PB client, coverage operations
-     [riakc, list_all_user_keys],
      [riakc, list_all_manifest_keys],
-     [riakc, list_users_receive_chunk],
-     [riakc, get_user_by_index],
-     [riakc, get_gc_keys_by_index],
-     [riakc, get_cs_buckets_by_index]
+     [riakc, get_user_by_index]
     ].
 
 duration_only_metrics() ->

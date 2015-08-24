@@ -40,6 +40,8 @@
          create_user/1,
          delete_bucket/2,
          set_bucket_acl/2,
+         set_bucket_policy/2,
+         delete_bucket_policy/2,
          stop/1,
          update_user/2,
          msgq_len/0]).
@@ -112,6 +114,22 @@ set_bucket_acl(Bucket, FieldList) ->
                              {set_acl, Bucket, FieldList},
                              infinity)).
 
+%% @doc Set the policy for a bucket
+-spec set_bucket_policy(binary(), term()) -> ok | {error, term()}.
+set_bucket_policy(Bucket, FieldList) ->
+    ?MEASURE([bucket, set_policy],
+             gen_server:call(?MODULE,
+                             {set_policy, Bucket, FieldList},
+                             infinity)).
+
+%% @doc delete the policy for a bucket
+-spec delete_bucket_policy(binary(), binary()) -> ok | {error, term()}.
+delete_bucket_policy(Bucket, RequesterId) ->
+    ?MEASURE([bucket, delete_policy],
+             gen_server:call(?MODULE,
+                             {delete_policy, Bucket, RequesterId},
+                             infinity)).
+
 stop(Pid) ->
     gen_server:cast(Pid, stop).
 
@@ -170,6 +188,16 @@ handle_call({set_acl, Bucket, FieldList},
             _From,
             State=#state{}) ->
     Result = ?TURNAROUND_TIME(stanchion_utils:set_bucket_acl(Bucket, FieldList)),
+    {reply, Result, State};
+handle_call({set_policy, Bucket, FieldList},
+            _From,
+            State=#state{}) ->
+    Result = ?TURNAROUND_TIME(stanchion_utils:set_bucket_policy(Bucket, FieldList)),
+    {reply, Result, State};
+handle_call({delete_policy, Bucket, RequesterId},
+            _From,
+            State=#state{}) ->
+    Result = ?TURNAROUND_TIME(stanchion_utils:delete_bucket_policy(Bucket, RequesterId)),
     {reply, Result, State};
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
