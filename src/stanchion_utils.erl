@@ -812,16 +812,18 @@ fetch_user(Key, RiakPid) ->
         {ok, Obj} ->
             {ok, {Obj, true}};
         {error, _} ->
-            WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+            weak_fetch_user(Key, RiakPid)
+    end.
 
-            {Res1, TAT1} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions)),
-            stanchion_stats:update([riakc, get_user], TAT1),
-            case Res1 of
-                {ok, Obj} ->
-                    {ok, {Obj, false}};
-                {error, Reason} ->
-                    {error, Reason}
-            end
+weak_fetch_user(Key, RiakPid) ->
+    WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions)),
+    stanchion_stats:update([riakc, get_user], TAT),
+    case Res of
+        {ok, Obj} ->
+            {ok, {Obj, false}};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 %% @doc Resolve the set of buckets for a user when
