@@ -61,6 +61,12 @@
 -type bucket_op_options() :: [bucket_op_option()].
 -type bucket_op_option() :: {acl, acl()} | {policy, binary()} | delete_policy | {bag, binary()}.
 
+-ifdef(namespaced_types).
+-type dictionary() :: dict:dict().
+-else.
+-type dictionary() :: dict().
+-endif.
+
 %% ===================================================================
 %% Public API
 %% ===================================================================
@@ -199,7 +205,7 @@ get_manifests(RiakcPid, Bucket, Key) ->
     end.
 
 %% @doc Determine if a set of contents of a riak object has a tombstone.
--spec has_tombstone({dict(), binary()}) -> boolean().
+-spec has_tombstone({dictionary(), binary()}) -> boolean().
 has_tombstone({_, <<>>}) ->
     true;
 has_tombstone({MD, _V}) ->
@@ -257,7 +263,7 @@ put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
     stanchion_stats:update([riakc, put_cs_bucket], TAT),
     Result.
 
--spec make_new_metadata(dict(), bucket_op_options()) -> dict().
+-spec make_new_metadata(dictionary(), bucket_op_options()) -> dictionary().
 make_new_metadata(MD, Opts) ->
     MetaVals = dict:fetch(?MD_USERMETA, MD),
     UserMetaData = make_new_user_metadata(MetaVals, Opts),
@@ -386,20 +392,11 @@ update_user(KeyId, UserFields) ->
     end.
 
 
--ifdef(new_hash).
 sha_mac(KeyData, STS) ->
     crypto:hmac(sha, KeyData, STS).
 
 md5(Bin) ->
     crypto:hash(md5, Bin).
--else.
-sha_mac(KeyData, STS) ->
-    crypto:sha_mac(KeyData, STS).
-
-md5(Bin) ->
-    crypto:md5(Bin).
--endif.
-
 
 %% ===================================================================
 %% Internal functions
@@ -815,16 +812,18 @@ fetch_user(Key, RiakPid) ->
         {ok, Obj} ->
             {ok, {Obj, true}};
         {error, _} ->
-            WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+            weak_fetch_user(Key, RiakPid)
+    end.
 
-            {Res1, TAT1} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions)),
-            stanchion_stats:update([riakc, get_user], TAT1),
-            case Res1 of
-                {ok, Obj} ->
-                    {ok, {Obj, false}};
-                {error, Reason} ->
-                    {error, Reason}
-            end
+weak_fetch_user(Key, RiakPid) ->
+    WeakOptions = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakPid, ?USER_BUCKET, Key, WeakOptions)),
+    stanchion_stats:update([riakc, get_user], TAT),
+    case Res of
+        {ok, Obj} ->
+            {ok, {Obj, false}};
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 %% @doc Resolve the set of buckets for a user when
