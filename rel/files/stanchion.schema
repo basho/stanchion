@@ -322,6 +322,32 @@
   hidden
 ]}.
 
+%% == Supercluster aka Multi-bug Support ==
+
+%% @doc IP and port for supercluster members.  Specify one member for
+%% each line, in which the last token of key is member identifier and
+%% value is a PB address of Riak node to connect.
+{mapping, "supercluster.member.$member_id", "stanchion.bags", [
+  {datatype, ip},
+  {include_default, "bag-A"},
+  {commented, {"192.168.0.101", 8087}},
+  hidden
+]}.
+
+{translation,
+ "stanchion.bags",
+ fun(Conf) ->
+   Keys = cuttlefish_variable:fuzzy_matches(["supercluster", "member", "$member_id"], Conf),
+   case Keys of
+       [] -> undefined;
+       [_|_] -> [begin
+                     {Host, Port} = cuttlefish:conf_get(
+                                      "supercluster.member." ++ MemberId, Conf),
+                     {MemberId, Host, Port}
+                 end || {Key, MemberId} <- Keys]
+   end
+ end
+}.
 
 %% @doc Cookie for distributed node communication.  All nodes in the
 %% same cluster should use the same cookie or they will not be able to
