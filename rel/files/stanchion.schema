@@ -327,7 +327,7 @@
 %% @doc IP and port for supercluster members.  Specify one member for
 %% each line, in which the last token of key is member identifier and
 %% value is a PB address of Riak node to connect.
-{mapping, "supercluster.member.$member_id", "stanchion.bags", [
+{mapping, "supercluster.member.$member_id", "stanchion.supercluster_members", [
   {datatype, ip},
   {include_default, "bag-A"},
   {commented, {"192.168.0.101", 8087}},
@@ -335,7 +335,7 @@
 ]}.
 
 {translation,
- "stanchion.bags",
+ "stanchion.supercluster_members",
  fun(Conf) ->
    Keys = cuttlefish_variable:fuzzy_matches(["supercluster", "member", "$member_id"], Conf),
    case Keys of
