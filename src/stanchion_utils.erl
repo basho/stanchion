@@ -27,6 +27,8 @@
          close_riak_connection/1,
          create_bucket/1,
          create_user/1,
+         get_user/2,
+         from_riakc_obj/2,
          delete_bucket/2,
          from_bucket_name/1,
          get_admin_creds/0,
@@ -779,23 +781,26 @@ get_user(KeyId, RiakPid) ->
     BinKey = list_to_binary(KeyId),
     case fetch_user(BinKey, RiakPid) of
         {ok, {Obj, KeepDeletedBuckets}} ->
-            case riakc_obj:value_count(Obj) of
-                1 ->
-                    User = binary_to_term(riakc_obj:get_value(Obj)),
-                    {ok, {User, Obj}};
-                0 ->
-                    {error, no_value};
-                _ ->
-                    Values = [binary_to_term(Value) ||
-                                 Value <- riakc_obj:get_values(Obj),
-                                 Value /= <<>>  % tombstone
-                             ],
-                    User = hd(Values),
-                    Buckets = resolve_buckets(Values, [], KeepDeletedBuckets),
-                    {ok, {User?RCS_USER{buckets=Buckets}, Obj}}
-            end;
+            from_riakc_obj(Obj, KeepDeletedBuckets);
         Error ->
             Error
+    end.
+
+from_riakc_obj(Obj, KeepDeletedBuckets) ->
+    case riakc_obj:value_count(Obj) of
+        1 ->
+            User = binary_to_term(riakc_obj:get_value(Obj)),
+            {ok, {User, Obj}};
+        0 ->
+            {error, no_value};
+        _ ->
+            Values = [binary_to_term(Value) ||
+                         Value <- riakc_obj:get_values(Obj),
+                         Value /= <<>>  % tombstone
+                     ],
+            User = hd(Values),
+            Buckets = resolve_buckets(Values, [], KeepDeletedBuckets),
+            {ok, {User?RCS_USER{buckets=Buckets}, Obj}}
     end.
 
 %% @doc Perform an initial read attempt with R=PR=N.
