@@ -77,7 +77,7 @@ check_admin_creds(Pid) ->
                 _ ->
                     ok
             end,
-            StrongOpts = [{r, all}, {pr, one}, {notfound_ok, false}],
+            StrongOpts = [{r, quorum}, {pr, one}, {notfound_ok, false}],
             case riakc_pb_socket:get(Pid, ?USER_BUCKET, KeyId,  StrongOpts) of
                 {ok, Obj} ->
                     case stanchion_utils:from_riakc_obj(Obj, false) of
