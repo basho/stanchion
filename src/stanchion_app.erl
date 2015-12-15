@@ -24,6 +24,8 @@
 
 -behaviour(application).
 
+-include("stanchion.hrl").
+
 %% application API
 -export([start/2,
          stop/1]).
@@ -41,8 +43,17 @@
                                            {error, term()}.
 start(_Type, _StartArgs) ->
     case stanchion_utils:riak_connection() of
-        {ok, _} ->
-            stanchion_sup:start_link();
+        {ok, Pid} ->
+            try
+                case check_admin_creds(Pid) of
+                    ok ->
+                        stanchion_sup:start_link();
+                    Error ->
+                        Error
+                end
+            after
+                stanchion_utils:close_riak_connection(Pid)
+            end;
         {error, Reason} ->
             _ = lager:error("Couldn't connect to Riak: ~p", [Reason]),
             {error, Reason}
@@ -52,3 +63,39 @@ start(_Type, _StartArgs) ->
 -spec stop(term()) -> ok.
 stop(_State) ->
     ok.
+
+check_admin_creds(Pid) ->
+    case application:get_env(stanchion, admin_key) of
+        {ok, "admin-key"} ->
+            lager:warning("admin.key is defined as default. Please create"
+                          " admin user and configure it.", []),
+            application:set_env(stanchion, admin_secret, "admin-secret");
+        {ok, KeyId} ->
+            case application:get_env(stanchion, admin_secret) of
+                {ok, _} ->
+                    lager:warning("admin.secret is ignored.");
+                _ ->
+                    ok
+            end,
+            StrongOpts = [{r, quorum}, {pr, one}, {notfound_ok, false}],
+            case riakc_pb_socket:get(Pid, ?USER_BUCKET, KeyId,  StrongOpts) of
+                {ok, Obj} ->
+                    case stanchion_utils:from_riakc_obj(Obj, false) of
+                        {ok, {User, _}} ->
+                            Secret = User?RCS_USER.key_secret,
+                            application:set_env(stanchion, admin_secret, Secret);
+                        Error ->
+                            Error
+                    end;
+                {error, not_found} ->
+                    lager:fatal("admin.key defined in stanchion.conf was not found."
+                                "Please create it."),
+                    {error, admin_not_configured};
+                Error ->
+                    lager:error("Error loading administrator configuration: ~p",
+                                [Error]),
+                    Error
+            end;
+        Error ->
+            Error
+    end.

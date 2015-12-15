@@ -29,15 +29,17 @@
 ]}.
 
 %% @doc Admin user credentials. The credentials specified here must
-%% match the admin credentials specified in the riak-cs app.config
-%% for the system to function properly.
+%% match the admin credentials specified in the riak-cs.conf for the
+%% system to function properly.
 {mapping, "admin.key", "stanchion.admin_key", [
   {default, "{{admin_key}}"},
   {datatype, string}
 ]}.
+
+%% @doc admin.secret is deprecated and will be removed at next version.
 {mapping, "admin.secret", "stanchion.admin_secret", [
-  {default, "{{admin_secret}}"},
-  {datatype, string}
+  {datatype, string},
+  hidden
 ]}.
 
 %% @doc {auth_bypass, {{auth_bypass}} } ,

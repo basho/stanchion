@@ -9,7 +9,7 @@ default_config_test() ->
     cuttlefish_unit:assert_config(Config, "stanchion.riak_host", {"127.0.0.1", 8087}),
     cuttlefish_unit:assert_not_configured(Config, "stanchion.ssl"),
     cuttlefish_unit:assert_config(Config, "stanchion.admin_key", "admin-key"),
-    cuttlefish_unit:assert_config(Config, "stanchion.admin_secret", "admin-secret"),
+    cuttlefish_unit:assert_not_configured(Config, "stanchion.admin_secret"),
     cuttlefish_unit:assert_config(Config, "stanchion.auth_bypass", false),
 
     {ok, [ConsoleLog, ErrorLog]} = cuttlefish_unit:path(cuttlefish_variable:tokenize("lager.handlers"), Config),
