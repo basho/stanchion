@@ -8,7 +8,7 @@
 ** Additions
 - Add statistics reporting
 - Add exometer_core 1.2
-- Update cuttlefish 2.0.4
+- Update to cuttlefish 2.0.4
 - Update to eper 0.92-basho1
 - Update to lager 2.2.0
 - Update to lager_syslog 2.1.1
