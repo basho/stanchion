@@ -1,0 +1,630 @@
+#!/bin/sh
+
+## -------------------------------------------------------------------
+##
+## stanchiondebug: Gather info from a node for troubleshooting.
+##
+## Copyright (c) 2014 Basho Technologies, Inc.  All Rights Reserved.
+##
+## This file is provided to you under the Apache License,
+## Version 2.0 (the "License"); you may not use this file
+## except in compliance with the License.  You may obtain
+## a copy of the License at
+##
+##   http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing,
+## software distributed under the License is distributed on an
+## "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+## KIND, either express or implied.  See the License for the
+## specific language governing permissions and limitations
+## under the License.
+##
+## -------------------------------------------------------------------
+
+# /bin/sh on Solaris is not a POSIX compatible shell, but /usr/bin/ksh is.
+if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
+    POSIX_SHELL="true"
+    export POSIX_SHELL
+    # To support 'whoami' add /usr/ucb to path
+    PATH=/usr/ucb:$PATH
+    export PATH
+    exec /usr/bin/ksh $0 "$@"
+fi
+unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
+
+###
+### Function declarations
+###
+
+echoerr () { echo "$@" 1>&2; }
+
+mkdir_or_die () {
+    # If the dir already exists, just return
+    [ -d "$1" ] && return
+
+    mkdir -p "$1"
+    if [ 0 -ne $? ]; then
+        echoerr "Error creating stanchion-debug directories. Aborting."
+        echoerr "$1"
+        exit 1
+    fi
+}
+
+dump () {
+    # first argument is the filename to hold the command output
+    out=$1
+    shift
+
+    # next argument is the base command to execute. skip dump if not available.
+    [ -z "`command -v $1`" ] && return
+
+    # execute the rest of the arguments as the command
+    $* >> "$out" 2>&1
+
+    # grab the return value
+    retval=$?
+
+    # put the command and the retval in the .info/$out file to aid automation.
+    # note: this will miss some escaping for, e.g., find, but it's not critical.
+    # get command that was run with `head -1 .info/$out`
+    # get return value from command with `tail -1 .info/$out`
+    echo "$*" > .info/"$out"
+    echo $retval >> .info/"$out"
+
+    if [ 0 -eq $retval ]; then
+        printf '.' 1>&2
+    else
+        if [ $verbose_output -gt 0 ]; then
+            echoerr 'Command '\'"$*"\'' failed. Continuing.'
+        else
+            printf 'E' 1>&2
+        fi
+    fi
+
+    return $retval
+}
+
+usage () {
+cat << 'EOF'
+Usage: stanchion-debug [-c] [-l] [-r] [-s] [-e] [-v] [FILENAME | -]
+
+-c, --cfgs           Gather Stanchion configuration information (includes everything
+                     in platform_etc_dir).
+                     Please see the Privacy Note below.
+    --ssl-certs      Do not skip the capture of *potentially private* SSL
+                     certificates.
+                     By default files in the platform_etc_dir with the following
+                     extensions are not included in the stanchion-debug archive:
+                     .pfx, .p12, .csr, .sst, .sto, .stl, .pem, .key.
+                     Please see the Privacy Note below.
+-l, --logs           Gather Stanchion logs.
+-r, --riakcmds       Gather Stanchion information and command output.
+-s, --syscmds        Gather general system commands.
+-e, --extracmds      Gather extra command output. These commands are too intense
+                     to run on all nodes in a cluster but appropriate for a
+                     single node.
+-v, --verbose        Print verbose failure messages to stderr
+    --log-mtime      Determine last modified time as n*24 hours, which
+                     stanchion-debug gathers newer logs than the time.
+                     (default: 14)
+    --skip-accesslog Exclude access.log from logs stanchion-debug gathers.
+FILENAME             Output filename for the tar.gz archive. Use - to specify stdout.
+
+Defaults: Get configs, logs, stanchion commands, and system commands.
+          Output in current directory to NODE_NAME-stanchion-debug.tar.gz or
+          HOSTNAME-stanchion-debug.tar.gz if NODE_NAME cannot be found.
+
+Privacy Note: When the -c flag is set (included in the defaults) every file in
+              the specified in Riak's `platform_etc_dir` will be copied into the
+              generated debug archive with the exceptions noted above. If there
+              are additional files that you wish to keep out of the archive, the
+              enviroment variable RIAK_EXCLUDE may be filled with a space
+              separated list of file patterns that will be passed into a `find
+              -name`. Any matches will be excluded from the generated archive.
+              E.g. `RIAK_EXCLUDE="'*.key' mySecretFile.txt" stanchion-debug`
+EOF
+exit
+}
+
+###
+### Set up variables
+###
+
+# These paths may be overridden with environment variables.
+RUNNER_BASE_DIR={{runner_base_dir}}
+stanchion_base_dir={{runner_base_dir}}
+stanchion_bin_dir={{runner_script_dir}}
+stanchion_etc_dir={{runner_etc_dir}}
+stanchion_log_dir={{runner_log_dir}}
+
+if [ -d {{platform_data_dir}}/generated.configs ]; then
+  cuttlefish_conf_dir={{platform_data_dir}}/generated.configs
+else
+  cuttlefish_conf_dir={{runner_base_dir}}/{{platform_data_dir}}/generated.configs
+fi
+
+get_cfgs=0
+get_ssl_certs=0
+get_logs=0
+get_riakcmds=0
+get_syscmds=0
+get_extracmds=0
+skip_accesslog=0
+verbose_output=0
+
+log_mtime=14
+
+###
+### Parse options
+###
+
+while [ -n "$1" ]; do
+    case "$1" in
+        -h|--help)
+            usage
+            ;;
+        -c|--cfgs)
+            get_cfgs=1
+            ;;
+           --ssl-certs)
+            get_ssl_certs=1
+            ;;
+        -l|--logs)
+            get_logs=1
+            ;;
+        -r|--riakcmds)
+            get_riakcmds=1
+            ;;
+        -s|--syscmds)
+            get_syscmds=1
+            ;;
+        -e|--extracmds)
+            get_extracmds=1
+            ;;
+           --log-mtime)
+            shift
+            log_mtime=$1
+            ;;
+           --skip-accesslog)
+            skip_accesslog=1
+            ;;
+        -v|--verbose)
+            verbose_output=`expr 1 + $verbose_output`
+            ;;
+        -)
+            # If truly specifying stdout as the output file, it should be last
+            if [ $# -gt 1 ]; then
+                echoerr "Trailing options following filename $1. Aborting."
+                echoerr "See 'stanchion-debug -h' and manpage for help."
+                exit 1
+            fi
+
+            outfile="-"
+            ;;
+        *)
+            # Shouldn't get here until the last option, the output filename.
+            if [ '-' = "$outfile" ]; then
+                echoerr "Filename $1 given but stdout, -, already specified."
+                echoerr "Aborting. See 'stanchion-debug -h' and manpage for help."
+                exit 1
+            fi
+
+            # The filename shouldn't start with a '-'. The single character '-'
+            # is handled as a special case above.
+            if [ '-' =  `echo "$1" | cut -c1` ]; then
+                echoerr "Unrecognized option $1. Aborting"
+                echoerr "See 'stanchion-debug -h' and manpage for help."
+                exit 1
+            fi
+
+            if [ $# -gt 1 ]; then
+                echoerr "Trailing options following filename $1. Aborting."
+                echoerr "See 'stanchion-debug -h' and manpage for help."
+                exit 1
+            fi
+
+            outfile="$1"
+            ;;
+    esac
+    shift
+done
+
+###
+### Finish setting up variables and overrides
+###
+
+if [ 0 -eq $(( $get_cfgs + $get_logs + $get_riakcmds + $get_syscmds + $get_extracmds )) ]; then
+    # Nothing specific was requested, so get everything except extracmds
+    get_cfgs=1
+    get_logs=1
+    get_riakcmds=1
+    get_syscmds=1
+    get_extracmds=0
+fi
+
+if [ 0 -eq $get_cfgs  -a  1 -eq $get_ssl_certs ]; then
+    echoerr "The --ssl-certs option is meaningless without --cfg. Ignoring."
+    get_ssl_certs=0
+fi
+
+if [ 0 -ne $(( $get_cfgs + $get_logs + $get_riakcmds + $get_extracmds )) ]; then
+    # Information specific to Riak requested. Need app_epath.sh and must have
+    # valid base and etc paths defined.
+
+    # app_epath.sh provides make_app_epaths and epath functions.
+    # Allow overriding with APP_EPATH
+    if [ -n "$APP_EPATH" ]; then
+        epath_file="$APP_EPATH"
+    else
+        epath_file="${stanchion_base_dir}/lib/app_epath.sh"
+    fi
+
+    if [ ! -f "$epath_file" ]; then
+        echoerr "Required file app_epath.sh not found. Expected here:"
+        echoerr "$epath_file"
+        echoerr "See 'stanchion-debug -h' and manpage for help."
+        exit 1
+    fi
+    . "$epath_file"
+
+    # Allow overriding stanchion_base_dir and stanchion_etc_dir from the environment
+    if [ -n "$stanchion_base_dir" ]; then
+        stanchion_base_dir="$stanchion_base_dir"
+        if [ "/" != "`echo "$stanchion_base_dir" | cut -c1`" ]; then
+            echoerr "Stanchion base directory should be an absolute path."
+            echoerr "$stanchion_base_dir"
+            echoerr "See 'stanchion-debug -h' and manpage for help."
+            exit 1
+        fi
+    fi
+
+    if [ -n "$stanchion_bin_dir" ]; then
+        stanchion_bin_dir="$stanchion_bin_dir"
+        if [ "/" != "`echo "$stanchion_bin_dir" | cut -c1`" ]; then
+            echoerr "Stanchion bin directory should be an absolute path."
+            echoerr "$stanchion_bin_dir"
+            echoerr "See 'stanchion-debug -h' and manpage for help."
+            exit 1
+        fi
+    fi
+
+    if [ -n "$stanchion_etc_dir" ]; then
+        stanchion_etc_dir="$stanchion_etc_dir"
+        if [ "/" != "`echo "$stanchion_etc_dir" | cut -c1`" ]; then
+            echoerr "Stanchion etc directory should be an absolute path."
+            echoerr "$stanchion_etc_dir"
+            echoerr "See 'stanchion-debug -h' and manpage for help."
+            exit 1
+        fi
+    fi
+fi
+
+#prefer vm.args if it exists
+if [ -f "${stanchion_etc_dir}/vm.args" ]; then
+    vmargs="${stanchion_etc_dir}/vm.args"
+elif [ -d "${cuttlefish_conf_dir}" ]; then
+    vmargs=`ls -t ${cuttlefish_conf_dir}/vm.*.args | head -1`
+fi
+
+
+if [ -f "${vmargs}" ]; then
+    node_name="`egrep '^\-s?name' "${vmargs}" 2>/dev/null | cut -d ' ' -f 2`"
+fi
+
+if [ -z "$node_name" ]; then
+    # Couldn't figure out node name. Fallback to hostname.
+    node_name="`hostname`"
+fi
+
+start_dir="$TMPDIR"
+
+if [ -z "$start_dir" ]; then
+    start_dir=/tmp
+fi
+
+# Strip any trailing slash from TMPDIR
+start_dir="`echo $start_dir | sed 's#/$##'`"
+
+debug_dir="${node_name}-stanchion-debug"
+
+if [ -d "${start_dir}"/"${debug_dir}" ]; then
+    echoerr "Temporary directory already exists. Aborting."
+    echoerr "${start_dir}"/"${debug_dir}"
+    exit 1
+fi
+
+if [ -z "$outfile" ]; then
+    # If output file not specified, output to the default
+    outfile="`pwd`"/"${debug_dir}".tar.gz
+fi
+
+if [ '-' != "$outfile" ] && [ -f "$outfile" ]; then
+    echoerr "Output file already exists. Aborting."
+    echoerr "$outfile"
+    exit 1
+fi
+
+###
+### Gather system commands
+###
+
+if [ 1 -eq $get_syscmds ]; then
+    mkdir_or_die "${start_dir}"/"${debug_dir}"/commands/.info
+    cd "${start_dir}"/"${debug_dir}"/commands
+
+    # System info
+    dump date date
+    dump w w
+    dump last last
+    dump hostname hostname
+    dump uname uname -a
+    dump lsb_release lsb_release
+    dump ps ps aux
+    dump vmstat vmstat 1 5
+    dump free free -m
+    dump df df
+    dump df_i df -i
+    dump dmesg dmesg
+    dump mount mount
+    dump sysctl sysctl -a
+    dump rpm rpm -qa
+    dump dpkg dpkg -l
+    dump pkg_info pkg_info
+    dump sestatus sestatus -v
+    dump ifconfig ifconfig -a
+    dump netstat_i netstat -i
+    dump netstat_an netstat -an
+    dump netstat_rn netstat -rn
+    dump pfctl_rules pfctl -s rules
+    dump pfctl_nat pfctl -s nat
+    dump zfs_list zfs list
+    dump zpool_list zpool list
+
+    # If swapctl exists, prefer it over swapon
+    if [ -n "`command -v swapctl`" ]; then
+        dump swapctl swapctl -s
+    else
+        dump swapon swapon -s
+    fi
+
+    BLOCKDEV=/sbin/blockdev
+    if [ -e $BLOCKDEV ]; then
+        for mount_point in `mount | egrep '^/' | awk '{print $1}'`; do
+            flat_point=`echo $mount_point | sed 's:/:_:g'`
+            dump blockdev.$flat_point $BLOCKDEV --getra $mount_point
+        done
+    else
+        dump blockdev._ echo $BLOCKDEV is not available
+    fi
+
+    # Running iptables commands if the module is not loaded can automatically
+    # load them. This is rarely desired and can even cause connectivity
+    # problems if, e.g., nf_conntrack gets autoloaded and autoenabled.
+    if [ -n "`command -v lsmod`" ]; then
+        if [ -n "`lsmod 2>/dev/null | awk '{print $1}' | grep iptable_filter`" ]; then
+            dump iptables_rules iptables -n -L
+        else
+            dump iptables_rules echo "iptables module not loaded"
+        fi
+
+        if [ -n "`lsmod 2>/dev/null | awk '{print $1}' | grep nf_conntrack`" ]; then
+            dump iptables_nat iptables -t nat -n -L
+        else
+            dump iptables_nat echo "nf_conntrack module not loaded"
+        fi
+    fi
+
+    if [ -f /proc/diskstats ]; then
+        # Linux iostat
+        dump iostat_linux iostat -mx 1 5
+    elif [ -d /proc ]; then
+        # No diskstats, but proc, probably Solaris or SmartOS
+        dump iostat_smartos iostat -xnz 1 5
+    else
+        # BSD style iostat
+        dump iostat_bsd iostat -dIw 1 -c 5
+    fi
+
+    # Dump files
+    [ -f /etc/release ] && dump release cat /etc/release
+    [ -f /etc/redhat-release ] && dump redhat_release cat /etc/redhat-release
+    [ -f /etc/debian_version ] && dump debian_version cat /etc/debian_version
+    [ -f /etc/security/limits.conf ] && dump limits.conf cat /etc/security/limits.conf
+    [ -f /var/log/messages ] && dump messages cat /var/log/messages
+    [ -f /var/log/syslog ] && dump syslog cat /var/log/syslog
+    [ -f /var/log/kern.log ] && dump kern.log cat /var/log/kern.log
+    [ -f /proc/diskstats ] && dump diskstats cat /proc/diskstats
+    [ -f /proc/cpuinfo ] && dump cpuinfo cat /proc/cpuinfo
+    [ -f /proc/meminfo ] && dump meminfo cat /proc/meminfo
+
+    # Dump directories and finds
+    [ -d /dev/disk/by-id ] && dump disk_by_id ls -l /dev/disk/by-id
+    [ -d /sys/block ] && dump schedulers find /sys/block/ -type l -print -exec cat {}/queue/scheduler \;
+    [ -d /proc/net/bonding ] && dump bonding find /proc/net/bonding/ -type f -print -exec cat {} \;
+    [ -d /sys/class/net ] && dump rx_crc_errors find /sys/class/net/ -type l -print -exec cat {}/statistics/rx_crc_errors \;
+
+    # A bit more complicated, but let's get all of limits.d if it's there
+    if [ -d /etc/security/limits.d ]; then
+        # check to ensure there is at least something to get
+        ls -1 /etc/security/limits.d | grep -q ".conf"
+        if [ 0 -eq $? ]; then
+            mkdir_or_die "${start_dir}"/"${debug_dir}"/commands/limits.d
+
+            # Mirror the directory, only copying files that match the pattern
+            cd /etc/security/limits.d
+            find . -type f -name '*.conf' -exec sh -c '
+                mkdir -p "$0/${1%/*}";
+                cp "$1" "$0/$1"
+                ' "${start_dir}"/"${debug_dir}"/commands/limits.d {} \;
+        fi
+    fi
+fi
+
+###
+### Gather Riak commands and info
+###
+
+if [ 1 -eq $get_riakcmds ]; then
+    mkdir_or_die "${start_dir}"/"${debug_dir}"/commands/.info
+    cd "${start_dir}"/"${debug_dir}"/commands
+
+    dump stanchion_ping "$stanchion_bin_dir"/stanchion ping
+    dump stanchion_version "$stanchion_bin_dir"/stanchion version
+    dump stanchion_config_effective "$stanchion_bin_dir"/stanchion config effective
+    dump stanchion_ertspath "$stanchion_bin_dir"/stanchion ertspath
+    dump stanchion_getpid "$stanchion_bin_dir"/stanchion getpid
+fi
+
+###
+### Gather Riak logs
+###
+
+if [ 1 -eq $get_logs ]; then
+    mkdir_or_die "${start_dir}"/"${debug_dir}"/logs/.info
+    cd "${start_dir}"/"${debug_dir}"/logs
+
+    # if not already made, make a flat, searchable version of the app.config
+    if [ -z "$riak_epaths" ]; then
+        #prefer app.config if it exists
+        if [ -f "${stanchion_etc_dir}/app.config" ]; then
+            appconfig="${stanchion_etc_dir}/app.config"
+            riak_epaths=`make_app_epaths "${appconfig}"`
+        elif [  -d "${cuttlefish_conf_dir}" ]; then
+            appconfig=`ls -t ${cuttlefish_conf_dir}/app.*.config | head -1`
+            riak_epaths=`make_app_epaths "${appconfig}"`
+        fi
+    fi
+
+    # grab a listing of the log directory to show if there are crash dumps
+    dump ls_log_dir ls -lhR $stanchion_log_dir
+
+    # Get any logs in the platform_log_dir
+    if [ -d "${stanchion_log_dir}" ]; then
+        # check to ensure there is at least something to get
+        ls -1 "${stanchion_log_dir}" | grep -q "log"
+        if [ 0 -eq $? ]; then
+            mkdir_or_die "${start_dir}"/"${debug_dir}"/logs/platform_log_dir
+
+            # Mirror the directory, only copying files that match the pattern
+            cd "$stanchion_log_dir"
+            find . -type f -mtime -$log_mtime -exec sh -c '
+                mkdir -p "$0/${1%/*}";
+                cp -p "$1" "$0/$1"
+                ' "${start_dir}"/"${debug_dir}"/logs/platform_log_dir {} \;
+
+            # Remove access logs
+            if [ 1 -eq $skip_accesslog ]; then
+                find "${start_dir}"/"${debug_dir}"/logs/platform_log_dir -type f -name 'access.log*' -exec rm {} \;
+            fi
+        fi
+    fi
+
+    # Lager info and error files
+    new_format_lager_files="`epath 'lager handlers lager_file_backend file' "$riak_epaths" | sed -e 's/^"//' -e 's/".*$//'`"
+    if [ -z "$riak_epaths" ]; then
+        lager_files=""
+    elif [ -z "$new_format_lager_files" ]; then
+        lager_files="`epath 'lager handlers lager_file_backend' "$riak_epaths" | cut -d' ' -f 1 | sed -e 's/^"//' -e 's/".*$//'`"
+    else
+        lager_files=$new_format_lager_files
+    fi
+    lager_num=0
+    for lager_path in $lager_files; do
+        # Get lager logs if they weren't in platform_log_dir
+        if [ -n "$lager_path" ]; then
+            if [ '/' != `echo "$lager_path" | cut -c1` ]; then
+                # relative path. prepend base dir
+                lager_path="$stanchion_base_dir"/"$lager_path"
+            fi
+
+            lager_file="`echo $lager_path | awk -F/ '{print $NF}'`"
+            lager_dir="`echo $lager_path | awk -F/$lager_file '{print $1}'|sed 's|/\./|/|'`"
+            if [ "$stanchion_log_dir" != "$lager_dir" ]; then
+                ls -1 "${lager_dir}" | grep -q "${lager_file}"
+                if [ 0 -eq $? ]; then
+                    mkdir_or_die "${start_dir}"/"${debug_dir}"/logs/lager_${lager_num}
+                    find "${lager_dir}" -mtime -$log_mtime -name "${lager_file}*" \
+                      -exec cp -p {} "${start_dir}"/"${debug_dir}"/logs/lager_"${lager_num}"/ \;
+                fi
+            fi
+        lager_num=`expr $lager_num + 1`
+        fi
+    done
+fi
+
+###
+### Gather Stanchion configuration
+###
+
+if [ 1 -eq $get_cfgs ]; then
+    mkdir_or_die "${start_dir}"/"${debug_dir}"/config/.info
+
+    # Capture the needed files from the `stanchion_etc_dir` directory.
+    cd $stanchion_etc_dir
+
+    # Convert the list of file blobs to a list of `"! -name <blob> `.
+    # For example if `RIAK_EXCLUDE="*.key mySecretFile"`, this will set
+    # `exclude="! -name *.key ! -name mySecretFile"`.
+    exclude=""
+    for i in `echo $RIAK_EXCLUDE`; do
+        exclude="${exclude}! -name $i "
+    done
+    if [ 0 -eq $get_ssl_certs ]; then
+        for i in `echo "'*.pfx' '*.p12' '*.csr' '*.sst' '*.sto' '*.stl' '*.pem' '*.key'"`; do
+            exclude="${exclude}! -name $i "
+        done
+    fi
+
+    # Compose the `find` command that will exclude the above list of files,
+    # being aware that an empty `\( \)` will cause a failure in the `find`.
+    if [ -z "$exclude" ]; then
+        run="find . -type f -exec sh -c '
+                mkdir -p \"\$0/\${1%/*}\";
+                cp \"\$1\" \"\$0/\$1\"
+            ' \"\${start_dir}\"/\"\${debug_dir}\"/config {} \;"
+    else
+        run="find . -type f \\( $exclude \\) -exec sh -c '
+                mkdir -p \"\$0/\${1%/*}\";
+                cp \"\$1\" \"\$0/\$1\"
+            ' \"\${start_dir}\"/\"\${debug_dir}\"/config {} \;"
+    fi
+    eval $run
+
+    # Copy the generated configurations into the archive.
+    cd "${start_dir}"/"${debug_dir}"/config
+
+    # Use dump to execute the copy. This will provide a progress dot and
+    # capture any error messages.
+    dump cp_generated_cfg cp -R "$cuttlefish_conf_dir" .
+
+    # If the copy succeeded, then the output will be empty and it is unneeded.
+    if [ 0 -eq $? ]; then
+        rm -f cp_generated_cfg
+    fi
+fi
+
+###
+### Produce the output file
+###
+
+# One last sanity check before transferring or removing anything
+cd "${start_dir}"
+if [ -z "$debug_dir" ] || [ ! -d "$debug_dir" ]; then
+    echoerr "Couldn't find ${start_dir}/${debug_dir}. Aborting"
+    exit 1
+fi
+
+if [ '-' = "$outfile" ]; then
+    # So we don't get a file literally named -
+    tar zcf - "${debug_dir}"
+else
+    tar zcf "$outfile" "${debug_dir}"
+
+    # provide some indication of the output filename
+    printf " $outfile" 1>&2
+fi
+rm -rf "${debug_dir}"
+
+# keep things looking pretty
+echoerr ""
