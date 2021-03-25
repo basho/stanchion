@@ -234,10 +234,10 @@ stats_metric_test() ->
      end || {Key, Type, Options, _} <- all_metrics()].
 
 stats_test_() ->
-    Apps = [setup, compiler, syntax_tools, goldrush, exometer_core],
+    Apps = [setup, compiler, syntax_tools, exometer_core],
     {setup,
      fun() ->
-             [ok = application:start(App) || App <- Apps],
+             [application:ensure_all_started(App) || App <- Apps],
              ok = stanchion_stats:init()
      end,
      fun(_) ->

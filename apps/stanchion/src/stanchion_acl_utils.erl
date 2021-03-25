@@ -261,7 +261,7 @@ process_creation_time([{Name, Value} | RestObjects], CreationTime) ->
 -ifdef(TEST).
 
 acl_from_json_test() ->
-    CreationTime = erlang:now(),
+    CreationTime = erlang:timestamp(),
     {AclMegaSecs, AclSecs, AclMicroSecs} = CreationTime,
     JsonTerm = [{<<"version">>,1},
                 {<<"owner">>,
@@ -297,7 +297,7 @@ acl_from_json_test() ->
     ?assertEqual(ExpectedAcl, Acl).
 
 acl_to_json_term_test() ->
-    CreationTime = erlang:now(),
+    CreationTime = erlang:timestamp(),
     Acl = acl("tester1",
               "TESTID1",
               "TESTKEYID1",
@@ -340,7 +340,7 @@ owner_to_json_term_test() ->
     ?assertEqual(ExpectedTerm, JsonTerm).
 
 grants_to_json_term_test() ->
-    CreationTime = erlang:now(),
+    CreationTime = erlang:timestamp(),
     Acl = acl("tester1",
               "TESTID1",
               "TESTKEYID1",

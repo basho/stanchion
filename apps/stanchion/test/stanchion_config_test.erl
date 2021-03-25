@@ -1,6 +1,6 @@
 -module(stanchion_config_test).
 -compile(export_all).
--compile(nowarn_deprecated_function).
+-compile(nowarn_export_all).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -24,8 +24,8 @@ ssl_config_test() ->
     ok.
 
 schema_files() ->
-    ["../rel/files/stanchion.schema"].
+    ["apps/stanchion/priv/stanchion.schema"].
 
 context() ->
-    {ok, Context} = file:consult("../rel/vars.config"),
+    {ok, Context} = file:consult("rel/vars.config"),
     Context.
