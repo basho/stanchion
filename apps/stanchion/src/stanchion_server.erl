@@ -65,7 +65,7 @@
             {{Result_____, ServiceTime____},
              TATus_____} = ?TURNAROUND_TIME(Call),
             WaitingTime____ = TATus_____ - ServiceTime____,
-            _ = lager:debug("~p ~p ~p", [Name, Result_____, ServiceTime____]),
+            _ = logger:debug("~p ~p ~p", [Name, Result_____, ServiceTime____]),
             stanchion_stats:update(Name, ServiceTime____, WaitingTime____),
             Result_____
         end).
@@ -212,7 +212,7 @@ handle_cast(list_buckets, State) ->
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Event, State) ->
-    _ = lager:warning("Received unknown cast event: ~p", [Event]),
+    _ = logger:warning("Received unknown cast event: ~p", [Event]),
     {noreply, State}.
 
 %% @doc @TODO

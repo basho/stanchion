@@ -55,7 +55,7 @@ start(_Type, _StartArgs) ->
                 stanchion_utils:close_riak_connection(Pid)
             end;
         {error, Reason} ->
-            _ = lager:error("Couldn't connect to Riak: ~p", [Reason]),
+            _ = logger:error("Couldn't connect to Riak: ~p", [Reason]),
             {error, Reason}
     end.
 

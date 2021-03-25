@@ -59,10 +59,10 @@
 -type acl_owner() :: {string(), string()} | {string(), string(), string()}.
 -record(acl_v1, {owner={"", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
-                 creation_time=now() :: erlang:timestamp()}).
+                 creation_time = erlang:timestamp() :: erlang:timestamp()}).
 -record(acl_v2, {owner={"", "", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
-                 creation_time=now() :: erlang:timestamp()}).
+                 creation_time = erlang:timestamp() :: erlang:timestamp()}).
 -type acl1() :: #acl_v1{}.
 -type acl2() :: #acl_v2{}.
 -type acl() :: acl1() | acl2().

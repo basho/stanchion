@@ -81,12 +81,12 @@ safe_update(BaseId, ElapsedUs) ->
     try
         update(BaseId, ElapsedUs)
     catch T:E ->
-            lager:error("Failed on storing some metrics: ~p,~p", [T,E])
+            logger:error("Failed on storing some metrics: ~p,~p", [T,E])
     end.
 
 -spec update(key(), integer()) -> ok | {error, any()}.
 update(BaseId, ElapsedUs) ->
-    _ = lager:debug("Updating ~p (~p)", [BaseId, ElapsedUs]),
+    _ = logger:debug("Updating ~p (~p)", [BaseId, ElapsedUs]),
     ok = exometer:update([stanchion|BaseId], 1),
     ok = exometer:update([stanchion,time|BaseId], ElapsedUs).
 
@@ -140,7 +140,7 @@ init_item({Name, Type, Opts, _Aliases}) ->
 
 -spec report_exometer_item(key(), [atom()], exometer:type()) -> [{atom(), integer()}].
 report_exometer_item(Key, SubKey, ExometerType) ->
-    _ = lager:debug("~p", [{Key, SubKey, ExometerType}]),
+    _ = logger:debug("~p", [{Key, SubKey, ExometerType}]),
     AtomKeys = [metric_to_atom(Key ++ SubKey, Suffix) ||
                    Suffix <- suffixes(ExometerType)],
     {ok, Values} = exometer:get_value([stanchion | SubKey ++ Key],
@@ -234,7 +234,7 @@ stats_metric_test() ->
      end || {Key, Type, Options, _} <- all_metrics()].
 
 stats_test_() ->
-    Apps = [setup, compiler, syntax_tools, goldrush, lager, exometer_core],
+    Apps = [setup, compiler, syntax_tools, goldrush, exometer_core],
     {setup,
      fun() ->
              [ok = application:start(App) || App <- Apps],

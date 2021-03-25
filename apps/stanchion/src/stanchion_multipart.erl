@@ -207,7 +207,7 @@ has_no_upload({ok, Obj}) ->
               end, Manifests);
 has_no_upload({error, notfound}) -> true;
 has_no_upload({error, _} = Error) ->
-    _ = lager:error("unexpected error: ~p", [Error]),
+    _ = logger:error("unexpected error: ~p", [Error]),
     true.
 
 -spec manifests_from_riak_object(riakc_obj:riakc_obj()) -> orddict:orddict().

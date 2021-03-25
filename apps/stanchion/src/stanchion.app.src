@@ -11,8 +11,7 @@
                   inets,
                   crypto,
                   mochiweb,
-                  webmachine,
-                  lager
+                  webmachine
                  ]},
   {mod, { stanchion_app, []}},
   {env, [

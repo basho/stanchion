@@ -1,10 +1,6 @@
 .eunit/*
-deps/*
-priv/*
+_build/
 rel/stanchion
-ebin/*.beam
-ebin/*.app
-doc
 dev
 /package/
 log/

@@ -63,12 +63,6 @@
 -type bucket_op_options() :: [bucket_op_option()].
 -type bucket_op_option() :: {acl, acl()} | {policy, binary()} | delete_policy | {bag, binary()}.
 
--ifdef(namespaced_types).
--type dictionary() :: dict:dict().
--else.
--type dictionary() :: dict().
--endif.
-
 %% ===================================================================
 %% Public API
 %% ===================================================================
@@ -131,8 +125,8 @@ create_user(UserFields) ->
                         {error, Reason1}
                 end
             catch T:E ->
-                    _ = lager:error("Error on creating user ~s: ~p",
-                                    [KeyId, {T, E}]),
+                    _ = logger:error("Error on creating user ~s: ~p",
+                                     [KeyId, {T, E}]),
                     {error, {T, E}}
             after
                 close_riak_connection(RiakPid)
@@ -171,11 +165,11 @@ get_admin_creds() ->
                 {ok, Secret} ->
                     {ok, {KeyId, Secret}};
                 undefined ->
-                    _ = lager:warning("The admin user's secret has not been defined."),
+                    _ = logger:warning("The admin user's secret has not been defined."),
                     {error, secret_undefined}
             end;
         undefined ->
-            _ = lager:warning("The admin user's key id has not been defined."),
+            _ = logger:warning("The admin user's key id has not been defined."),
             {error, key_id_undefined}
     end.
 
@@ -207,7 +201,7 @@ get_manifests(RiakcPid, Bucket, Key) ->
     end.
 
 %% @doc Determine if a set of contents of a riak object has a tombstone.
--spec has_tombstone({dictionary(), binary()}) -> boolean().
+-spec has_tombstone({dict:dict(), binary()}) -> boolean().
 has_tombstone({_, <<>>}) ->
     true;
 has_tombstone({MD, _V}) ->
@@ -256,7 +250,7 @@ put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
              [MD0] -> MD0;
              _E ->
                  MsgData = {siblings, riakc_obj:key(BucketObj)},
-                 _ = lager:error("bucket has siblings: ~p", [MsgData]),
+                 _ = logger:error("bucket has siblings: ~p", [MsgData]),
                  throw(MsgData) % @TODO: data broken; handle this
            end,
     MetaData = make_new_metadata(MD, Opts),
@@ -265,7 +259,7 @@ put_bucket(BucketObj, OwnerId, Opts, RiakPid) ->
     stanchion_stats:update([riakc, put_cs_bucket], TAT),
     Result.
 
--spec make_new_metadata(dictionary(), bucket_op_options()) -> dictionary().
+-spec make_new_metadata(dict:dict(), bucket_op_options()) -> dict:dict().
 make_new_metadata(MD, Opts) ->
     MetaVals = dict:fetch(?MD_USERMETA, MD),
     UserMetaData = make_new_user_metadata(MetaVals, Opts),
@@ -382,9 +376,9 @@ update_user(KeyId, UserFields) ->
                     {error, _}=Error ->
                         Error
                 end
-            catch T:E ->
-                    _ = lager:error("Error on updating user ~s: ~p",
-                                    [KeyId, {T, E}]),
+            catch T:E:_ST ->
+                    _ = logger:error("Error on updating user ~s: ~p",
+                                     [KeyId, {T, E}]),
                     {error, {T, E}}
             after
                 close_riak_connection(RiakPid)
@@ -512,7 +506,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
         {{error, Reason}, TAT} ->
             stanchion_stats:update([riakc, get_cs_bucket], TAT),
             %% @TODO Maybe bubble up this error info
-            _ = lager:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p", [Bucket, Reason]),
+            _ = logger:warning("Error occurred trying to check if the bucket ~p exists. Reason: ~p",
+                               [Bucket, Reason]),
             {false, Reason}
     end.
 
@@ -541,8 +536,8 @@ do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
                         {error, Reason1}
                 end
             catch T:E ->
-                    _ = lager:error("Error on updating bucket ~s: ~p",
-                                    [Bucket, {T, E}]),
+                    _ = logger:error("Error on updating bucket ~s: ~p",
+                                     [Bucket, {T, E}]),
                     {error, {T, E}}
             after
                 close_riak_connection(RiakPid)
@@ -598,9 +593,9 @@ is_bucket_clean(Bucket, RiakPid, BucketObj) ->
                         {true, BucketObj}
                 end
         end
-    catch T:E ->
-            _ = lager:error("Could not check whether bucket was empty. Reason: ~p:~p - ~p",
-                            [T,E,erlang:get_stacktrace()]),
+    catch T:E:ST ->
+            _ = logger:error("Could not check whether bucket was empty. Reason: ~p:~p - ~p",
+                             [T, E, ST]),
             error({T, E})
     after
         close_manifest_connection(RiakPid, ManifestRiakPid)
@@ -676,7 +671,8 @@ email_available(Email, RiakPid) ->
             {false, user_already_exists};
         {error, Reason} ->
             %% @TODO Maybe bubble up this error info
-            _ = lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p", [Email, Reason]),
+            _ = logger:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p",
+                               [Email, Reason]),
             {false, Reason}
     end.
 
@@ -722,7 +718,7 @@ get_value(BucketName, Key, RiakPid) ->
         {ok, RiakObj} ->
             riakc_obj:get_value(RiakObj);
         {error, Reason} ->
-            _ = lager:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
+            _ = logger:warning("Failed to retrieve value for ~p. Reason: ~p", [Key, Reason]),
             <<"unknown">>
     end.
 

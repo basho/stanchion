@@ -86,10 +86,10 @@
 -type acl_owner() :: {string(), string()} | {string(), string(), string()}.
 -record(acl_v1, {owner={"", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
-                 creation_time=now() :: erlang:timestamp()}).
+                 creation_time = erlang:timestamp() :: erlang:timestamp()}).
 -record(acl_v2, {owner={"", "", ""} :: acl_owner(),
                  grants=[] :: [acl_grant()],
-                 creation_time=now() :: erlang:timestamp()}).
+                 creation_time = erlang:timestamp() :: erlang:timestamp()}).
 -type acl() :: #acl_v1{} | #acl_v2{}.
 
 -type cluster_id() :: undefined | term().  % Type still in flux.
