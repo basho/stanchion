@@ -11,7 +11,9 @@
                   inets,
                   crypto,
                   mochiweb,
-                  webmachine
+                  webmachine,
+                  exometer_core,
+                  riakc
                  ]},
   {mod, { stanchion_app, []}},
   {env, [
