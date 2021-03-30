@@ -1,12 +1,11 @@
 REPO		?= stanchion
-
-PKG_REVISION    ?= $(shell git describe --tags)
-PKG_VERSION	?= $(shell git describe --tags | tr - .)
-PKG_ID           = stanchion-$(PKG_VERSION)
+HEAD_REVISION   ?= $(shell git describe --tags --exact-match HEAD 2>/dev/null)
+PKG_REVISION    ?= $(shell git describe --tags 2>/dev/null)
 PKG_BUILD        = 1
 BASE_DIR         = $(shell pwd)
-ERLANG_BIN       = $(shell dirname $(shell which erl))
-REBAR           ?= $(BASE_DIR)/rebar
+ERLANG_BIN       = $(shell dirname $(shell which erl 2>/dev/null) 2>/dev/null)
+OTP_VER          = $(shell echo $(ERLANG_BIN) | rev | cut -d "/" -f 2 | rev)
+REBAR           ?= $(BASE_DIR)/rebar3
 OVERLAY_VARS    ?=
 
 .PHONY: rel deps test
@@ -14,16 +13,16 @@ OVERLAY_VARS    ?=
 all: deps compile
 
 compile: deps
-	@(./rebar compile)
+	@($(REBAR) compile)
 
 deps:
-	@./rebar get-deps
+	@$(REBAR) get-deps
 
 clean:
-	@./rebar clean
+	@$(REBAR) clean
 
 distclean: clean
-	@./rebar delete-deps
+	@$(REBAR) delete-deps
 	@rm -rf $(PKG_ID).tar.gz
 
 parity-test:
@@ -33,8 +32,8 @@ parity-test:
 ## Release targets
 ##
 rel: deps compile
-	@./rebar compile
-	@./rebar skip_deps=true generate $(OVERLAY_VARS)
+	@$(REBAR) compile
+	@$(REBAR) as rel release
 
 relclean:
 	rm -rf rel/stanchion
@@ -48,8 +47,7 @@ stage : rel
 
 devrel: all
 	mkdir -p dev
-	@./rebar skip_deps=true generate target_dir=../dev/$(REPO) \
-		overlay_vars=dev_vars.config
+	@$(REBAR) as rel release -o dev --overlay_vars rel/vars/$*_vars.config
 
 stagedevrel: devrel
 	$(foreach app,$(wildcard apps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(app))* && ln -sf $(abspath $(app)) dev/$(REPO)/lib;)
@@ -103,5 +101,3 @@ package: package.src
 
 pkgclean: distclean
 	rm -rf package
-
-include tools.mk
