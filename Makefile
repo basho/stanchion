@@ -47,7 +47,7 @@ stage : rel
 
 devrel: all
 	mkdir -p dev
-	@$(REBAR) as rel release -o dev --overlay_vars rel/vars/$*_vars.config
+	@$(REBAR) as rel release -o dev --overlay_vars rel/dev_vars.config
 
 stagedevrel: devrel
 	$(foreach app,$(wildcard apps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(app))* && ln -sf $(abspath $(app)) dev/$(REPO)/lib;)
