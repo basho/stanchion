@@ -14,7 +14,7 @@
   {git,"https://github.com/eproxus/meck.git",
        {ref,"4ecc1ae9089edc6977e8c8c4cd41081513cc5590"}},
   3},
- {<<"mochiweb">>,{pkg,<<"mochiweb">>,<<"2.18.0">>},1},
+ {<<"mochiweb">>,{pkg,<<"mochiweb">>,<<"2.20.1">>},0},
  {<<"parse_trans">>,{pkg,<<"parse_trans">>,<<"3.3.0">>},1},
  {<<"protobuffs">>,
   {git,"https://github.com/basho/erlang_protobuffs.git",
@@ -38,7 +38,7 @@
  {<<"bear">>, <<"16264309AE5D005D03718A5C82641FCC259C9E8F09ADEB6FD79CA4271168656F">>},
  {<<"folsom">>, <<"A885F0AEEE4C84270954C88A55A5A473D6B2C7493E32FFDC5765412DD555A951">>},
  {<<"hut">>, <<"08D46679523043424870723923971889E8A34D63B2F946A35B46CF921D1236E7">>},
- {<<"mochiweb">>, <<"EB55F1DB3E6E960FAC4E6DB4E2DB9EC3602CC9F30B86CD1481D56545C3145D2E">>},
+ {<<"mochiweb">>, <<"E4DBD0ED716F076366ECF62ADA5755A844E1D95C781E8C77DF1D4114BE868CDF">>},
  {<<"parse_trans">>, <<"09765507A3C7590A784615CFD421D101AEC25098D50B89D7AA1D66646BC571C1">>},
  {<<"setup">>, <<"1203F4CDA11306C2E34434244576DED0A7BBFB0908D9A572356C809BD0CDF085">>}]}
 ].
