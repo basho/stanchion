@@ -13,6 +13,7 @@
                   mochiweb,
                   webmachine,
                   exometer_core,
+                  lager,
                   riakc
                  ]},
   {mod, { stanchion_app, []}},
