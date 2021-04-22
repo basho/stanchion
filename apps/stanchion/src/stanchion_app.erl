@@ -88,7 +88,7 @@ check_admin_creds(Pid) ->
                             Error
                     end;
                 {error, notfound} ->
-                    lager:fatal("admin.key defined in stanchion.conf was not found."
+                    lager:error("admin.key defined in stanchion.conf was not found."
                                 "Please create it."),
                     {error, admin_not_configured};
                 Error ->
