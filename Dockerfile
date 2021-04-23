@@ -2,6 +2,7 @@ FROM erlang:22.3.4.10 AS compile-image
 
 ARG riak_host=127.0.0.1 \
     riak_pb_port=8087 \
+    stanchion_host=127.0.0.1 \
     stanchion_port=8085
 
 EXPOSE $stanchion_port
@@ -10,9 +11,10 @@ WORKDIR /usr/src/stanchion
 COPY . /usr/src/stanchion
 
 RUN sed -i \
+    -e "s/@stanchion_ip@/$stanchion_host/" \
     -e "s/@stanchion_port@/$stanchion_port/" \
     -e "s/@riak_ip@/$riak_host/" \
-    -e "s/@riak_pb_port@/${riak_pb_port}/" \
+    -e "s/@riak_pb_port@/$riak_pb_port/" \
     rel/docker/vars.config
 RUN ./rebar3 as docker release
 
@@ -29,4 +31,4 @@ COPY --from=compile-image /usr/src/stanchion/rel/docker/tini /tini
 RUN chmod +x /tini
 
 ENTRYPOINT ["/tini", "--"]
-CMD ["/opt/stanchion/bin/stanchion", "foreground"]
+CMD "/opt/stanchion/bin/stanchion foreground"
