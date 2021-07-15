@@ -24,7 +24,7 @@ ssl_config_test() ->
     ok.
 
 schema_files() ->
-    ["apps/stanchion/priv/stanchion.schema"].
+    ["priv/stanchion.schema"].
 
 context() ->
     {ok, Context} = file:consult("rel/vars.config"),
