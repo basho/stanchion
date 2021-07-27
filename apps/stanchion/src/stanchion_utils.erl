@@ -42,6 +42,7 @@
          riak_connection/2,
          set_bucket_acl/2,
          set_bucket_policy/2,
+         set_bucket_versioning/2,
          delete_bucket_policy/2,
          timestamp/1,
          to_bucket_name/2,
@@ -59,7 +60,7 @@
 -define(OBJECT_BUCKET_PREFIX, <<"0o:">>).       % Version # = 0
 -define(BLOCK_BUCKET_PREFIX, <<"0b:">>).        % Version # = 0
 
--type bucket_op() :: create | update_acl | delete | update_policy | delete_policy.
+-type bucket_op() :: create | update_acl | delete | update_policy | delete_policy | set_versioning.
 -type bucket_op_options() :: [bucket_op_option()].
 -type bucket_op_option() :: {acl, acl()} | {policy, binary()} | delete_policy | {bag, binary()}.
 
@@ -237,7 +238,7 @@ pow(Base, Power, Acc) ->
 %% @doc Store a new bucket in Riak
 %% though whole metadata itself is a dict, a metadata of ?MD_USERMETA is
 %% proplists of {?MD_ACL, ACL::binary()}|{?MD_POLICY, PolicyBin::binary()}|
-%%  {?MD_BAG, BagId::binary()}.
+%%  {?MD_BAG, BagId::binary()}, {?MD_VERSIONING, bucket_versioning_option()}}.
 %% should preserve other metadata. ACL and Policy can be overwritten.
 -spec put_bucket(term(), binary(), bucket_op_options(), pid()) ->
                         ok | {error, term()}.
@@ -268,7 +269,7 @@ make_new_metadata(MD, Opts) ->
 -spec make_new_user_metadata(proplists:proplist(), bucket_op_options()) -> proplists:proplist().
 make_new_user_metadata(MetaVals, [])->
     MetaVals;
-make_new_user_metadata(MetaVals, [{acl, Acl} | Opts])->
+make_new_user_metadata(MetaVals, [{acl, Acl} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_ACL, Acl, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [{policy, Policy} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_POLICY, Policy, MetaVals), Opts);
@@ -277,7 +278,9 @@ make_new_user_metadata(MetaVals, [{bag, undefined} | Opts]) ->
 make_new_user_metadata(MetaVals, [{bag, BagId} | Opts]) ->
     make_new_user_metadata(replace_meta(?MD_BAG, BagId, MetaVals), Opts);
 make_new_user_metadata(MetaVals, [delete_policy | Opts]) ->
-    make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts).
+    make_new_user_metadata(proplists:delete(?MD_POLICY, MetaVals), Opts);
+make_new_user_metadata(MetaVals, [{versioning, VsnOpt} | Opts]) ->
+    make_new_user_metadata(replace_meta(?MD_VERSIONING, VsnOpt, MetaVals), Opts).
 
 replace_meta(Key, NewValue, MetaVals) ->
     [{Key, term_to_binary(NewValue)} | proplists:delete(Key, MetaVals)].
@@ -332,6 +335,13 @@ set_bucket_policy(Bucket, FieldList) ->
     % if overhead of parsing JSON were expensive, need to import
     % code of JSON parse from riak_cs_s3_policy
     do_bucket_op(Bucket, OwnerId, [{policy, PolicyJson}], update_policy).
+
+%% @doc set bucket versioning option
+-spec set_bucket_versioning(binary(), term()) -> ok | {error, term()}.
+set_bucket_versioning(Bucket, FieldList) ->
+    OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
+    Json = proplists:get_value(<<"versioning">>, FieldList, []),
+    do_bucket_op(Bucket, OwnerId, [{versioning, Json}], set_versioning).
 
 
 %% @doc Delete a bucket
@@ -500,6 +510,8 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                     {false, no_such_bucket};
                 update_policy ->
                     {false, no_such_bucket};
+                set_versioning ->
+                    {false, no_such_bucket};
                 delete ->
                     {false, no_such_bucket}
             end;
@@ -525,11 +537,12 @@ do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
                 case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
                     {true, BucketObj} ->
                         Value = case BucketOp of
-                                    create ->        OwnerId;
-                                    update_acl ->    OwnerId;
-                                    update_policy -> OwnerId;
-                                    delete_policy -> OwnerId;
-                                    delete ->        ?FREE_BUCKET_MARKER
+                                    create ->         OwnerId;
+                                    update_acl ->     OwnerId;
+                                    update_policy ->  OwnerId;
+                                    delete_policy ->  OwnerId;
+                                    set_versioning -> OwnerId;
+                                    delete ->         ?FREE_BUCKET_MARKER
                                 end,
                         put_bucket(BucketObj, Value, Opts, RiakPid);
                     {false, Reason1} ->

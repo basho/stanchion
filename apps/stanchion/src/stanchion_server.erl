@@ -41,6 +41,7 @@
          delete_bucket/2,
          set_bucket_acl/2,
          set_bucket_policy/2,
+         set_bucket_versioning/2,
          delete_bucket_policy/2,
          stop/1,
          update_user/2,
@@ -122,6 +123,14 @@ set_bucket_policy(Bucket, FieldList) ->
                              {set_policy, Bucket, FieldList},
                              infinity)).
 
+%% @doc Set the versioning option for a bucket
+-spec set_bucket_versioning(binary(), term()) -> ok | {error, term()}.
+set_bucket_versioning(Bucket, FieldList) ->
+    ?MEASURE([bucket, set_versioning],
+             gen_server:call(?MODULE,
+                             {set_versioning, Bucket, FieldList},
+                             infinity)).
+
 %% @doc delete the policy for a bucket
 -spec delete_bucket_policy(binary(), binary()) -> ok | {error, term()}.
 delete_bucket_policy(Bucket, RequesterId) ->
@@ -193,6 +202,11 @@ handle_call({set_policy, Bucket, FieldList},
             _From,
             State=#state{}) ->
     Result = ?TURNAROUND_TIME(stanchion_utils:set_bucket_policy(Bucket, FieldList)),
+    {reply, Result, State};
+handle_call({set_versioning, Bucket, FieldList},
+            _From,
+            State=#state{}) ->
+    Result = ?TURNAROUND_TIME(stanchion_utils:set_bucket_versioning(Bucket, FieldList)),
     {reply, Result, State};
 handle_call({delete_policy, Bucket, RequesterId},
             _From,
