@@ -203,7 +203,7 @@ get_manifests(RiakcPid, Bucket, Key, Vsn) ->
             %% riak_cs_gc module
             %% Pruned = stanchion_manifest_utils:prune(Resolved),
             {ok, Object, Resolved};
-        {error, notfound}=NotFound ->
+        {error, notfound} = NotFound ->
             NotFound
     end.
 
@@ -705,15 +705,16 @@ email_available(Email_, RiakPid) ->
 get_keys_and_values(BucketName) ->
     case riak_connection() of
         {ok, RiakPid} ->
-            case list_keys(BucketName, RiakPid) of
-                {ok, Keys} ->
-                    KeyValuePairs =
-                        [{Key, get_value(BucketName, Key, RiakPid)}
-                         || Key <- Keys],
-                    Res = {ok, KeyValuePairs};
-                {error, Reason1} ->
-                    Res = {error, Reason1}
-            end,
+            Res =
+                case list_keys(BucketName, RiakPid) of
+                    {ok, Keys} ->
+                        KeyValuePairs =
+                            [{Key, get_value(BucketName, Key, RiakPid)}
+                             || Key <- Keys],
+                        {ok, KeyValuePairs};
+                    {error, Reason1} ->
+                        {error, Reason1}
+                end,
             close_riak_connection(RiakPid),
             Res;
         {error, _} = Else ->

@@ -115,4 +115,3 @@ delete_resource(RD, Ctx) ->
         {error, Reason} ->
             stanchion_response:api_error(Reason, RD, Ctx)
     end.
-

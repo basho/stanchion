@@ -169,7 +169,7 @@ msgq_len() ->
 init([]) ->
     {ok, #state{}};
 init(test) ->
-      {ok, #state{}}.
+    {ok, #state{}}.
 
 %% @doc Handle synchronous commands issued via exported functions.
 -spec handle_call(term(), {pid(), term()}, state()) ->

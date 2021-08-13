@@ -92,9 +92,7 @@ content_types_accepted(RD, Ctx) ->
     {{'halt', _}, #wm_reqdata{}, term()}.
 to_xml(RD, Ctx) ->
     Bucket = wrq:path_info(bucket, RD),
-    stanchion_response:list_buckets_response(Bucket,
-                                                 RD,
-                                                 Ctx).
+    stanchion_response:list_buckets_response(Bucket, RD, Ctx).
 
 %% SLF: Dialyzer note: As far as I can tell, the func
 %%      stanchion_utils:update_bucket_owner() has never existed.
