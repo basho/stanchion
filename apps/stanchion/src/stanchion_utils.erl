@@ -62,9 +62,13 @@
 -define(OBJECT_BUCKET_PREFIX, <<"0o:">>).       % Version # = 0
 -define(BLOCK_BUCKET_PREFIX, <<"0b:">>).        % Version # = 0
 
--type bucket_op() :: create | update_acl | delete | update_policy | delete_policy | set_versioning.
+-type bucket_op() :: create | update_acl | delete | update_policy | delete_policy | update_versioning.
+-type bucket_op_option() :: {acl, acl()}
+                          | {policy, binary()}
+                          | delete_policy
+                          | {bag, binary()}
+                          | {versioning, binary()}.
 -type bucket_op_options() :: [bucket_op_option()].
--type bucket_op_option() :: {acl, acl()} | {policy, binary()} | delete_policy | {bag, binary()}.
 
 %% ===================================================================
 %% Public API
@@ -211,15 +215,14 @@ has_tombstone({MD, _V}) ->
     dict:is_key(<<"X-Riak-Deleted">>, MD) =:= true.
 
 %% @doc List the keys from a bucket
--spec list_keys(binary(), pid()) -> {ok, [binary()]} | {error, term()}.
 list_keys(BucketName, RiakPid) ->
     case ?TURNAROUND_TIME(riakc_pb_socket:list_keys(RiakPid, BucketName)) of
         {{ok, Keys}, TAT} ->
             stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
             {ok, lists:sort(Keys)};
-        {{error, _}, TAT} = Else ->
+        {{error, _} = ER, TAT} ->
             stanchion_stats:update([riakc, list_all_manifest_keys], TAT),
-            Else
+            ER
     end.
 
 %% @doc Integer version of the standard pow() function; call the recursive accumulator to calculate.
@@ -343,7 +346,7 @@ set_bucket_policy(Bucket, FieldList) ->
 set_bucket_versioning(Bucket, FieldList) ->
     OwnerId = proplists:get_value(<<"requester">>, FieldList, <<>>),
     Json = proplists:get_value(<<"versioning">>, FieldList, []),
-    do_bucket_op(Bucket, OwnerId, [{versioning, Json}], set_versioning).
+    do_bucket_op(Bucket, OwnerId, [{versioning, Json}], update_versioning).
 
 
 %% @doc Delete a bucket
@@ -513,7 +516,7 @@ bucket_available(Bucket, RequesterId, BucketOp, RiakPid) ->
                     {false, no_such_bucket};
                 update_policy ->
                     {false, no_such_bucket};
-                set_versioning ->
+                update_versioning ->
                     {false, no_such_bucket};
                 delete ->
                     {false, no_such_bucket}
@@ -540,12 +543,12 @@ do_bucket_op(Bucket, OwnerId, Opts, BucketOp) ->
                 case bucket_available(Bucket, OwnerId, BucketOp, RiakPid) of
                     {true, BucketObj} ->
                         Value = case BucketOp of
-                                    create ->         OwnerId;
-                                    update_acl ->     OwnerId;
-                                    update_policy ->  OwnerId;
-                                    delete_policy ->  OwnerId;
-                                    set_versioning -> OwnerId;
-                                    delete ->         ?FREE_BUCKET_MARKER
+                                    create ->            OwnerId;
+                                    update_acl ->        OwnerId;
+                                    update_policy ->     OwnerId;
+                                    delete_policy ->     OwnerId;
+                                    update_versioning -> OwnerId;
+                                    delete ->            ?FREE_BUCKET_MARKER
                                 end,
                         put_bucket(BucketObj, Value, Opts, RiakPid);
                     {false, Reason1} ->
@@ -617,7 +620,7 @@ is_bucket_clean(Bucket, RiakPid, BucketObj) ->
         close_manifest_connection(RiakPid, ManifestRiakPid)
     end.
 
--spec manifest_connection(pid, riakc_obj:riakc_obj()) -> {ok, pid()} | {error, term()}.
+-spec manifest_connection(pid(), riakc_obj:riakc_obj()) -> {ok, pid()} | {error, term()}.
 manifest_connection(RiakPid, BucketObj) ->
     case bag_id_from_bucket(BucketObj) of
         undefined -> {ok, RiakPid};
@@ -629,8 +632,6 @@ manifest_connection(RiakPid, BucketObj) ->
             end
     end.
 
--spec conn_info_from_bag(binary(), undefined | {ok, [{string(), string(), non_neg_integer()}]})
-                        -> {string(), non_neg_integer()}.
 conn_info_from_bag(_BagId, undefined) ->
     undefined;
 conn_info_from_bag(BagId, {ok, Bags}) ->
@@ -642,7 +643,6 @@ conn_info_from_bag(BagId, {ok, Bags}) ->
             {Address, Port}
     end.
 
--spec bag_id_from_bucket(riakc_obj:riakc_obj()) -> binary().
 bag_id_from_bucket(BucketObj) ->
     Contents = riakc_obj:get_contents(BucketObj),
     bag_id_from_contents(Contents).
@@ -676,8 +676,15 @@ close_manifest_connection(_RiakPid, ManifestRiakPid) ->
 %% for a particular key.
 %% @TODO Consider other options that would give more
 %% assurance that a particular email address is available.
--spec email_available(binary(), pid()) -> true | {false, term()}.
-email_available(Email, RiakPid) ->
+-spec email_available(string() | binary(), pid()) -> true | {false, user_already_exists | term()}.
+email_available(Email_, RiakPid) ->
+
+    %% this is to pacify dialyzer, which makes an issue of
+    %% Email::string() (coming from #rcs_user_v2.email type) as
+    %% conflicting with binary() as the type appropriate for 4th arg
+    %% in get_index_eq
+    Email = iolist_to_binary([Email_]),
+
     {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get_index_eq(RiakPid, ?USER_BUCKET, ?EMAIL_INDEX, Email)),
     stanchion_stats:update([riakc, get_user_by_index], TAT),
     case Res of
@@ -687,8 +694,8 @@ email_available(Email, RiakPid) ->
             {false, user_already_exists};
         {error, Reason} ->
             %% @TODO Maybe bubble up this error info
-            _ = lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p",
-                              [Email, Reason]),
+            lager:warning("Error occurred trying to check if the address ~p has been registered. Reason: ~p",
+                          [Email, Reason]),
             {false, Reason}
     end.
 

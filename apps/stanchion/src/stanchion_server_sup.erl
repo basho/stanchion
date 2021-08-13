@@ -44,23 +44,17 @@ start_link() ->
 
 %% @doc Initialize this supervisor. This is a `one_for_one',
 %%      whose child spec is for starting a `stanchion_server' process.
--spec init([]) -> {ok, {{supervisor:strategy(),
-                         pos_integer(),
-                         pos_integer()},
-                        [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
-    RestartStrategy = one_for_one,
-    MaxRestarts = 1000,
-    MaxSecondsBetweenRestarts = 3600,
+    SupFlags = #{strategy => one_for_one,
+                 intensity => 1000,
+                 period => 3600},
 
-    SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
-
-    Restart = permanent,
-    Shutdown = 2000,
-    Type = worker,
-
-    ServerSpec = {undefined,
-                  {stanchion_server, start_link, []},
-                  Restart, Shutdown, Type, [stanchion_server]},
+    ServerSpec = #{id => stanchion_server,
+                   start => {stanchion_server, start_link, []},
+                   restart => permanent,
+                   shutdown => 2000,
+                   type => worker,
+                   modules => [stanchion_server]},
 
     {ok, {SupFlags, [ServerSpec]}}.

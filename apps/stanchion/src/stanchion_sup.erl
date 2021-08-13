@@ -43,10 +43,8 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% @doc supervisor callback.
--spec init([]) -> {ok, {{supervisor:strategy(),
-                         integer(),
-                         integer()},
-                        [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(),
+                        [supervisor:child_spec()]}} | ignore.
 init([]) ->
     {Ip, Port} = case application:get_env(stanchion, host) of
         {ok, {_, _} = HostPort} -> HostPort;
@@ -62,13 +60,14 @@ init([]) ->
 
     %% Create child specifications
     WebConfig1 = [
-                 {dispatch, stanchion_web:dispatch_table()},
-                 {ip, Ip},
-                 {port, Port},
-                 {nodelay, true},
-                 {log_dir, "log"},
-                 %% {rewrite_module, stanchion_wm_rewrite},
-                 {error_handler, stanchion_wm_error_handler}],
+                  {dispatch, stanchion_web:dispatch_table()},
+                  {ip, Ip},
+                  {port, Port},
+                  {nodelay, true},
+                  {log_dir, "log"},
+                  %% {rewrite_module, stanchion_wm_rewrite},
+                  {error_handler, stanchion_wm_error_handler}
+                 ],
     WebConfig =
         case application:get_env(stanchion, ssl) of
             {ok, SSLOpts} ->
@@ -77,11 +76,17 @@ init([]) ->
             undefined ->
                 WebConfig1
         end,
-    Web = {webmachine_mochiweb,
-           {webmachine_mochiweb, start, [WebConfig]},
-           permanent, 5000, worker, dynamic},
-    ServerSup = {stanchion_server_sup,
-                 {stanchion_server_sup, start_link, []},
-                 permanent, 5000, worker, dynamic},
+    Web = #{id => webmachine_mochiweb,
+            start => {webmachine_mochiweb, start, [WebConfig]},
+            restart => permanent,
+            shutdown => 5000,
+            modules => dynamic},
+    ServerSup = #{id => stanchion_server_sup,
+                  start => {stanchion_server_sup, start_link, []},
+                  restart => permanent,
+                  shutdown => 5000,
+                  modules => dynamic},
     Processes = [ServerSup, Web],
-    {ok, { {one_for_one, 10, 10}, Processes} }.
+    {ok, { #{strategy => one_for_one,
+             intensity => 10,
+             period => 10}, Processes} }.

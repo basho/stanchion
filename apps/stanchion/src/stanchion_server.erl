@@ -56,8 +56,8 @@
          terminate/2,
          code_change/3]).
 
--record(state, {riak_ip :: string(),
-                riak_port :: pos_integer()}).
+-record(state, {riak_ip :: undefined | string(),
+                riak_port :: undefined | pos_integer()}).
 -type state() :: #state{}.
 
 %% This ?TURNAROUND_TIME has another ?TURNAROUND_TIME at gen_server

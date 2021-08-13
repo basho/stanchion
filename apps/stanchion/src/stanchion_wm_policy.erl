@@ -102,7 +102,7 @@ accept_body(RD, Ctx) ->
     end.
 
 %% @doc Callback for deleting an object.
--spec delete_resource(#wm_reqdata{}, #context{}) -> {true, #wm_reqdata{}, #context{}}.
+-spec delete_resource(#wm_reqdata{}, #context{}) -> {{halt, 204}, #wm_reqdata{}, #context{}} | {true, #wm_reqdata{}, #context{}}.
 delete_resource(RD, Ctx) ->
     Bucket = list_to_binary(wrq:path_info(bucket, RD)),
     RequesterId = list_to_binary(wrq:get_qs_value("requester", "", RD)),
