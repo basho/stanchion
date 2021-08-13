@@ -201,8 +201,11 @@ get_manifests(RiakcPid, Bucket, Key, Vsn) ->
 
             %% commented out because we don't have the
             %% riak_cs_gc module
-            %% Pruned = stanchion_manifest_utils:prune(Resolved),
-            {ok, Object, Resolved};
+            Pruned = rcs_common_manifest_utils:prune(
+                       Resolved, erlang:timestamp(),
+                       50,  %% riak_cs defaults for max_scheduled_delete_manifests and
+                       86400),  %% leeway_seconds
+            {ok, Object, Pruned};
         {error, notfound} = NotFound ->
             NotFound
     end.
