@@ -1,6 +1,7 @@
 %% ---------------------------------------------------------------------
 %%
 %% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
+%%               2021 TI Tokyo    All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -24,8 +25,8 @@
          respond/4,
          error_response/5,
          list_buckets_response/3]).
+
 -define(xml_prolog, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>").
--include("stanchion.hrl").
 
 error_message(invalid_access_key_id) ->
     "The AWS Access Key Id you provided does not exist in our records.";

@@ -1,6 +1,7 @@
 %% ---------------------------------------------------------------------
 %%
 %% Copyright (c) 2007-2013 Basho Technologies, Inc.  All Rights Reserved.
+%%               2021 TI Tokyo    All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -22,13 +23,11 @@
 
 -module(stanchion_acl_utils).
 
--include("stanchion.hrl").
+-include_lib("rcs_common/include/rcs_common_manifest.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
 -ifdef(TEST).
-
 -include_lib("eunit/include/eunit.hrl").
-
 -endif.
 
 %% Public API
@@ -43,7 +42,7 @@
 
 %% @doc Construct an acl. The structure is the same for buckets
 %% and objects.
--spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl2().
+-spec acl(string(), string(), string(), [acl_grant()], erlang:timestamp()) -> acl().
 acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
     OwnerData = {DisplayName, CanonicalId, KeyId},
     ?ACL{owner=OwnerData,
@@ -52,7 +51,7 @@ acl(DisplayName, CanonicalId, KeyId, Grants, CreationTime) ->
 
 %% @doc Convert a set of JSON terms representing an ACL into
 %% an internal representation.
--spec acl_from_json(term()) -> acl2().
+-spec acl_from_json(term()) -> acl().
 acl_from_json({struct, Json}) ->
     process_acl_contents(Json, ?ACL{});
 acl_from_json(Json) ->
@@ -123,7 +122,7 @@ permissions_to_json_term(Perms) ->
     [list_to_binary(atom_to_list(Perm)) || Perm <- Perms].
 
 %% @doc Process the top-level elements of the
--spec process_acl_contents([term()], acl()) -> acl2().
+-spec process_acl_contents([term()], acl()) -> acl().
 process_acl_contents([], Acl) ->
     Acl;
 process_acl_contents([{Name, Value} | RestObjects], Acl) ->
@@ -144,7 +143,7 @@ process_acl_contents([{Name, Value} | RestObjects], Acl) ->
     process_acl_contents(RestObjects, UpdAcl).
 
 %% @doc Process an JSON element containing acl owner information.
--spec process_owner([term()], acl()) -> acl2().
+-spec process_owner([term()], acl()) -> acl().
 process_owner([], Acl) ->
     Acl;
 process_owner([{Name, Value} | RestObjects], Acl) ->
@@ -169,7 +168,7 @@ process_owner([{Name, Value} | RestObjects], Acl) ->
     process_owner(RestObjects, Acl?ACL{owner=UpdOwner}).
 
 %% @doc Process an JSON element containing the grants for the acl.
--spec process_grants([term()], acl()) -> acl2().
+-spec process_grants([term()], acl()) -> acl().
 process_grants([], Acl) ->
     Acl;
 process_grants([{_, Value} | RestObjects], Acl) ->

@@ -14,7 +14,8 @@
                   webmachine,
                   exometer_core,
                   lager,
-                  riakc
+                  riakc,
+                  rcs_common
                  ]},
   {mod, { stanchion_app, []}},
   {env, [

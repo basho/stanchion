@@ -33,8 +33,8 @@
          from_bucket_name/1,
          get_admin_creds/0,
          get_keys_and_values/1,
-         get_manifests/3,
-         get_manifests_raw/3,
+         get_manifests/4,
+         get_manifests_raw/4,
          has_tombstone/1,
          pow/2,
          pow/3,
@@ -52,6 +52,8 @@
         ]).
 
 -include("stanchion.hrl").
+-include_lib("rcs_common/include/rcs_common_manifest.hrl").
+-include_lib("rcs_common/include/rcs_common_moss.hrl").
 -include_lib("riakc/include/riakc.hrl").
 -include_lib("riak_pb/include/riak_pb_kv_codec.hrl").
 
@@ -175,10 +177,10 @@ get_admin_creds() ->
     end.
 
 %% @doc
--spec get_manifests(pid(), binary(), binary()) ->
+-spec get_manifests(pid(), binary(), binary(), binary()) ->
     {ok, term(), term()} | {error, notfound}.
-get_manifests(RiakcPid, Bucket, Key) ->
-    case get_manifests_raw(RiakcPid, Bucket, Key) of
+get_manifests(RiakcPid, Bucket, Key, Vsn) ->
+    case get_manifests_raw(RiakcPid, Bucket, Key, Vsn) of
         {ok, Object} ->
             DecodedSiblings = [binary_to_term(V) ||
                                   {_, V}=Content <- riakc_obj:get_contents(Object),
@@ -186,10 +188,10 @@ get_manifests(RiakcPid, Bucket, Key) ->
 
             %% Upgrade the manifests to be the latest erlang
             %% record version
-            Upgraded = stanchion_manifest_utils:upgrade_wrapped_manifests(DecodedSiblings),
+            Upgraded = rcs_common_manifest_utils:upgrade_wrapped_manifests(DecodedSiblings),
 
             %% resolve the siblings
-            Resolved = stanchion_manifest_resolution:resolve(Upgraded),
+            Resolved = rcs_common_manifest_resolution:resolve(Upgraded),
 
             %% prune old scheduled_delete manifests
 
@@ -442,7 +444,8 @@ bucket_empty_any_pred(RiakcPid, Bucket) ->
 %% we'll take care of calling `to_bucket_name'
 -spec key_exists(pid(), binary(), binary()) -> boolean().
 key_exists(RiakcPid, Bucket, Key) ->
-    key_exists_handle_get_manifests(get_manifests(RiakcPid, Bucket, Key)).
+    key_exists_handle_get_manifests(
+      get_manifests(RiakcPid, Bucket, Key, ?LFS_DEFAULT_OBJECT_VERSION)).
 
 %% @private
 -spec key_exists_handle_get_manifests({ok, riakc_obj:riakc_obj(), list()} |
@@ -464,7 +467,7 @@ active_to_bool({error, notfound}) ->
                                     {error, notfound}) ->
     {ok, term()} | {error, notfound}.
 active_manifest_from_response({ok, Manifests}) ->
-    handle_active_manifests(stanchion_manifest_utils:active_manifest(Manifests));
+    handle_active_manifests(rcs_common_manifest_utils:active_manifest(Manifests));
 active_manifest_from_response({error, notfound}=NotFound) ->
     NotFound.
 
@@ -712,11 +715,13 @@ get_keys_and_values(BucketName) ->
 
 %% internal fun to retrieve the riak object
 %% at a bucket/key
--spec get_manifests_raw(pid(), binary(), binary()) ->
+-spec get_manifests_raw(pid(), binary(), binary(), binary()) ->
     {ok, riakc_obj:riakc_obj()} | {error, notfound}.
-get_manifests_raw(RiakcPid, Bucket, Key) ->
+get_manifests_raw(RiakcPid, Bucket, Key, Vsn) ->
     ManifestBucket = to_bucket_name(objects, Bucket),
-    {Res, TAT} = ?TURNAROUND_TIME(riakc_pb_socket:get(RiakcPid, ManifestBucket, Key)),
+    {Res, TAT} = ?TURNAROUND_TIME(
+                    riakc_pb_socket:get(RiakcPid, ManifestBucket,
+                                        rcs_common_manifest:make_versioned_key(Key, Vsn))),
     stanchion_stats:update([riakc, get_manifest], TAT),
     Res.
 
