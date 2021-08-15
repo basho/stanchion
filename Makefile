@@ -50,8 +50,6 @@ devrel: all
 	@$(REBAR) as rel release -o dev --overlay_vars rel/dev_vars.config
 
 stagedevrel: devrel
-	$(foreach app,$(wildcard apps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(app))* && ln -sf $(abspath $(app)) dev/$(REPO)/lib;)
-	$(foreach dep,$(wildcard deps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(dep))* && ln -sf $(abspath $(dep)) dev/$(REPO)/lib;)
 
 devclean: clean
 	rm -rf dev
