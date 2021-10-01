@@ -34,6 +34,7 @@ parity-test:
 rel: deps compile
 	@$(REBAR) compile
 	@$(REBAR) as rel release
+	@cp -a _build/rel/rel/stanchion rel/
 
 relclean:
 	rm -rf rel/stanchion
