@@ -8,10 +8,8 @@ if [ -z $SCRIPT ]; then
 fi
 
 SCRIPT_DIR="$(cd `dirname "$SCRIPT"` && pwd -P)"
-RELEASE_ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
-REL_NAME="stanchion"
 
-RPC_HOP=$RELEASE_ROOT_DIR/bin/$REL_NAME
+RPC_HOP=$SCRIPT_DIR/stanchion
 
 usage() {
     echo "Usage: $SCRIPT { status }"
