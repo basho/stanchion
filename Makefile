@@ -36,11 +36,11 @@ rel: deps compile
 	@$(REBAR) as rel release
 	@cp -a _build/rel/rel/stanchion rel/
 
-rel-rpm: compile
+rel-rpm: compile relclean
 	$(REBAR) as rpm release
 	cp -a _build/rpm/rel/stanchion rel/
 
-rel-deb: compile
+rel-deb: compile relclean
 	$(REBAR) as deb release
 	cp -a _build/deb/rel/stanchion rel/
 
