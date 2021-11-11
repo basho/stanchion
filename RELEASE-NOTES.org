@@ -5,6 +5,7 @@
   otherwise.
 - Packages (rpm and deb) now rely on systemd, currently available for
   Centos 8 and Debian 11.
+- A Dockerfile.
 * Stanchion 2.1.2 Release Notes
 ** Additions
 - Update to node_package 3.0.0
