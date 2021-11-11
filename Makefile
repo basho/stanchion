@@ -44,9 +44,6 @@ rel-deb: compile relclean
 	$(REBAR) as deb release
 	cp -a _build/deb/rel/stanchion rel/
 
-relclean:
-	rm -rf $(REL_DIR)
-	rm -rf rel/stanchion
 
 relclean:
 	rm -rf rel/stanchion
