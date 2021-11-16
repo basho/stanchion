@@ -141,15 +141,15 @@ fi
 
 %files
 %defattr(-,root,root)
-%dir %{_sysconfdir}/stanchion
 %{_libdir}/*
 %{_unitdir}/%{name}.service
 %{_sbindir}/*
 
-%defattr(0750,stanchion,stanchion)
+%defattr(-,stanchion,stanchion)
 %{_sysconfdir}/stanchion
 %{_localstatedir}/lib/stanchion
 %{_localstatedir}/log/stanchion
+
 %config(noreplace) %{_sysconfdir}/stanchion/*
 
 %clean
