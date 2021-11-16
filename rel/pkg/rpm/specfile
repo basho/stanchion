@@ -146,7 +146,7 @@ fi
 %{_unitdir}/%{name}.service
 %{_sbindir}/*
 
-%defattr(-,stanchion,stanchion)
+%defattr(0750,stanchion,stanchion)
 %{_sysconfdir}/stanchion
 %{_localstatedir}/lib/stanchion
 %{_localstatedir}/log/stanchion
