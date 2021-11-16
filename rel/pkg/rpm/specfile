@@ -138,6 +138,9 @@ fi
 
 %postun
 %systemd_postun %{name}.service
+rm -f %{_sysconfdir}/stanchion/stanchion.conf.new
+rm -rf %{_localstatedir}/lib/stanchion
+rm -rf %{_localstatedir}/log/stanchion
 
 %files
 %defattr(-,root,root)
