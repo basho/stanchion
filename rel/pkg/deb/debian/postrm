@@ -25,6 +25,9 @@ case "$1" in
         if [ -d /var/log/stanchion ]; then
                 rm -r /var/log/stanchion
         fi
+        if [ -d /var/lib/stanchion ]; then
+                rm -r /var/lib/stanchion
+        fi
         if [ -d /var/run/stanchion ]; then
                 rm -r /var/run/stanchion
         fi

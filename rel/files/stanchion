@@ -32,7 +32,7 @@ DEBUG_COMMAND=/usr/sbin/stanchion-debug
 RUNNER_LOG_DIR={{platform_log_dir}}
 RELX_CONFIG_PATH=${RUNNER_GEN_DIR}/sys.config
 VMARGS_PATH=${RUNNER_GEN_DIR}/vm.args
-PIPE_DIR=/tmp/stanchion_pipes/
+PIPE_DIR={{pipe_dir}}/    # trailing slash makes it a path for relx
 
 mkdir -p $PIPE_DIR
 chown $STN_USER:$STN_USER $PIPE_DIR

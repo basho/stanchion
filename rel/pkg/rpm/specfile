@@ -138,10 +138,12 @@ fi
 
 %postun
 %systemd_postun %{name}.service
+rm -f %{_sysconfdir}/stanchion/stanchion.conf.new
+rm -rf %{_localstatedir}/lib/stanchion
+rm -rf %{_localstatedir}/log/stanchion
 
 %files
 %defattr(-,root,root)
-%dir %{_sysconfdir}/stanchion
 %{_libdir}/*
 %{_unitdir}/%{name}.service
 %{_sbindir}/*
@@ -150,6 +152,7 @@ fi
 %{_sysconfdir}/stanchion
 %{_localstatedir}/lib/stanchion
 %{_localstatedir}/log/stanchion
+
 %config(noreplace) %{_sysconfdir}/stanchion/*
 
 %clean
