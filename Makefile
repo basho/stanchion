@@ -44,6 +44,10 @@ rel-deb: compile relclean
 	$(REBAR) as deb release
 	cp -a _build/deb/rel/stanchion rel/
 
+rel-fbsdng: compile relclean
+	$(REBAR) as fbsdng release
+	cp -a _build/fbsdng/rel/stanchion rel/
+
 rel-docker: compile relclean
 	REBAR_CONFIG=rebar.docker.config $(REBAR) release
 	cp -a _build/default/rel/stanchion rel/

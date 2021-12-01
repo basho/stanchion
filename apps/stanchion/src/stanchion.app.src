@@ -2,7 +2,11 @@
 {application, stanchion,
  [
   {description, "stanchion"},
-  {vsn, git},
+  %% 'git' may introduce a '+' character (when building not from a
+  %% tag), and that plus sign will not go down well with freebsd pkg
+  %% ('+' is not allowed in +MANIFEST file).  Hence we produce a
+  %% version of vsn that doesn't have it.
+  {vsn, {cmd, "echo \"stanchion-`git describe --tags`\""}},
   {modules, []},
   {registered, []},
   {applications, [

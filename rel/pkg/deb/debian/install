@@ -2,6 +2,6 @@ rel/stanchion/lib usr/lib64/stanchion
 rel/stanchion/share usr/lib64/stanchion
 rel/stanchion/erts* usr/lib64/stanchion
 rel/stanchion/releases usr/lib64/stanchion
-rel/stanchion/usr/sbin/* usr/sbin
+rel/stanchion/usr/bin/* usr/bin
 rel/stanchion/bin usr/lib64/stanchion
 rel/stanchion/etc/* etc/stanchion

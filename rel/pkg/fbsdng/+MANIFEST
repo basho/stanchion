@@ -1,0 +1,17 @@
+name: "stanchion"
+origin: "databases"
+comment: "Request Serialization Application"
+licenses: ["Apache 2"]
+licenselogic: "single"
+arch: "freebsd:13:x86:64"
+www: "tiot.jp"
+maintainer: "packaging@tiot.jp"
+users: ["stanchion"]
+groups: ["stanchion"]
+prefix: "/usr/local"
+categories: ["databases"]
+desc: "Request Serialization Application for Riak CS"
+scripts: {
+  pre-install: "if ! pw groupshow stanchion 2>/dev/null; then pw groupadd stanchion; fi \n if ! pw usershow stanchion 2>/dev/null; then pw useradd stanchion -g stanchion -h - -d /usr/local/var/lib/stanchion -s /bin/sh -c \"Stanchion user\"; fi \n if [ ! -d /var/log/stanchion ]; then mkdir /var/log/stanchion && chown stanchion:stanchion /var/log/stanchion; fi"
+  post-install: "chown stanchion:stanchion /usr/local/etc/stanchion"
+}
