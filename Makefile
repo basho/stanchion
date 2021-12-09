@@ -21,9 +21,8 @@ deps:
 clean:
 	@$(REBAR) clean
 
-distclean: clean
-	@$(REBAR) delete-deps
-	@rm -rf $(PKG_ID).tar.gz
+distclean: clean devclean relclean
+	@rm -rf _build
 
 parity-test:
 	@python test/prototype_parity.py -v
