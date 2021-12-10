@@ -13,5 +13,6 @@ categories: ["databases"]
 desc: "Request Serialization Application for Riak CS"
 scripts: {
   pre-install: "if ! pw groupshow stanchion 2>/dev/null; then pw groupadd stanchion; fi \n if ! pw usershow stanchion 2>/dev/null; then pw useradd stanchion -g stanchion -h - -d /usr/local/var/lib/stanchion -s /bin/sh -c \"Stanchion user\"; fi \n if [ ! -d /var/log/stanchion ]; then mkdir /var/log/stanchion && chown stanchion:stanchion /var/log/stanchion; fi"
-  post-install: "chown stanchion:stanchion /usr/local/etc/stanchion"
+  post-install: "chown stanchion:stanchion /usr/local/etc/stanchion; (cd /usr/local/lib/stanchion; ln -s erts-* erts)"
+  pre-deinstall: "rm -f /usr/local/lib/stanchion/erts"
 }

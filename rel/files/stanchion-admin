@@ -2,24 +2,43 @@
 # -*- tab-width:4;indent-tabs-mode:nil -*-
 # ex: ts=4 sw=4 et
 
-SCRIPT=$(readlink $0 || true)
-if [ -z $SCRIPT ]; then
-    SCRIPT=$0
-fi
+SCRIPT="stanchion-admin"
 
-SCRIPT_DIR="$(cd `dirname "$SCRIPT"` && pwd -P)"
+RPC_HOP="{{platform_bin_dir}}/stanchion rpc"
 
-RPC_HOP=$SCRIPT_DIR/stanchion
+# if we ever need to start a separate node to do fancier stuff than we
+# can via rpc, here are the ingredients:
+#
+# ERTS_PATH="{{platform_bin_dir}}/../erts/bin"
+# COOKIE=`egrep '^[ \t]*distributed_cookie[ \t]*=[ \t]*' {{platform_etc_dir}}/stanchion-cs.conf 2> /dev/null | cut -d = -f 2 | tr -d ' '`
+# NODE={{node}}
+# HOST=${NODE#*@}
+# BOOT_FILE="{{runner_base_dir}}/releases/{{rel_vsn}}/start_clean"
+#
+# for something like this:
+#
+#      $ERTS_PATH/erl -noshell -name stanchion_test@$HOST -setcookie $COOKIE \
+#                  -pa {{runner_patch_dir}} \
+#                  -boot $BOOT_FILE \
+#                  -eval "case catch(stanchion:client_test(\"$NODE\")) of \
+#                          ok -> init:stop();                             \
+#                          _  -> init:stop(1)                             \
+#                         end."
+#
 
 usage() {
-    echo "Usage: $SCRIPT { status }"
+    echo "Usage: $SCRIPT { version | status }"
 }
 
 # Check the first argument for instructions
 case "$1" in
+    version)
+        shift
+        $RPC_HOP stanchion_console version
+        ;;
     status)
         shift
-        $RPC_HOP rpc stanchion_console status
+        $RPC_HOP stanchion_console status
         ;;
     *)
         usage
