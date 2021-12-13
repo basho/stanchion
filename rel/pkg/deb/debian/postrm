@@ -29,7 +29,7 @@ case "$1" in
                 rm -r /var/lib/stanchion
         fi
         if [ -d /var/run/stanchion ]; then
-                rm -r /var/run/stanchion
+                rm -r /run/stanchion
         fi
         if [ -d /etc/stanchion ]; then
                 rm -r /etc/stanchion
