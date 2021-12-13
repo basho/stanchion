@@ -83,6 +83,7 @@ $(BUILD_STAGE_DIR): buildrel
 	cp -R rel/stanchion/lib $(PLIB_DIR)
 	cp -R rel/stanchion/share $(PLIB_DIR)
 	cp -R rel/stanchion/erts-* $(PLIB_DIR)
+	(cd $(PLIB_DIR) && ln -s erts-* erts)
 	cp -R rel/stanchion/releases $(PLIB_DIR)
 	mkdir -p $(PDATA_DIR)
 # cp -R rel/stanchion/data/* $(PDATA_DIR) || true  # as of 3.0.0, there is nothing in data
