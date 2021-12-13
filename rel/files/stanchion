@@ -54,7 +54,8 @@ function write_pid_file {  # relx doesn't seem to write the pid file, does it?
     sleep 1
     while [[ $c -ne 0 ]]; do
 	if [ "`maybe_su ${RELX_STANCHION} ping`" = "pong" ]; then
-	    maybe_su ${RELX_STANCHION} pid >$PID_DIR/stanchion.pid
+            maybe_su ${RELX_STANCHION} pid >$PID_DIR/stanchion.pid
+            chown root:root $PID_DIR/stanchion.pid || true  # systemd wants it to be owned by root
 	    break
 	fi
 	sleep 2
