@@ -471,7 +471,6 @@ if [ 1 -eq $get_riakcmds ]; then
     dump stanchion_ping "$stanchion_bin_dir"/stanchion ping
     dump stanchion_version "$stanchion_bin_dir"/stanchion-admin version
     dump stanchion_config_effective "$stanchion_bin_dir"/stanchion config effective
-    dump stanchion_ertspath "$stanchion_bin_dir"/stanchion ertspath
     dump stanchion_getpid "$stanchion_bin_dir"/stanchion pid
     dump stanchion_admin_status "$stanchion_bin_dir"/stanchion-admin status
 fi
