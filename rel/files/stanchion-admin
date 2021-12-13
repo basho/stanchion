@@ -27,11 +27,15 @@ RPC_HOP="{{platform_bin_dir}}/stanchion rpc"
 #
 
 usage() {
-    echo "Usage: $SCRIPT { status }"
+    echo "Usage: $SCRIPT { version | status }"
 }
 
 # Check the first argument for instructions
 case "$1" in
+    version)
+        shift
+        $RPC_HOP stanchion_console version
+        ;;
     status)
         shift
         $RPC_HOP stanchion_console status

@@ -23,11 +23,18 @@
 
 -module(stanchion_console).
 
--export([status/1]).
+-export([version/1,
+	 status/1]).
 
 %% ===================================================================
 %% Public API
 %% ===================================================================
+
+version([]) ->
+    {ok, Vsn} = application:get_env(stanchion, stanchion_version),
+    io:format("version : ~p~n", [Vsn]),
+    ok.
+
 status(_) ->
     Stats = stanchion_stats:get_stats(),
     [io:format("~s : ~p~n", [Key,Value]) || {Key,Value} <- Stats],
