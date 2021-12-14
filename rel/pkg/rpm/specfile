@@ -29,7 +29,7 @@ Vendor: "TI Tokyo"
 Packager: "Stanchion Package Maintainer" <"andriy.zavada@tiot.jp">
 BuildRoot: %{_tmppath}/%{name}-%{_revision}-%{release}-root
 Summary: "Request serialization service for Riak CS"
-BuildRequires: systemd systemd-rpm-macros
+BuildRequires: systemd
 Requires: logrotate
 Requires(post): systemd
 Requires(preun): systemd
