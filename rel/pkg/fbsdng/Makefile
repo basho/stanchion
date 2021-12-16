@@ -75,8 +75,11 @@ $(BUILD_STAGE_DIR): buildrel
 	@echo "Copying rel directory to staging directory"
 	mkdir -p $@
 	mkdir -p $(PBIN_DIR) $(PUSRBIN_DIR)
-	cp -R rel/stanchion/usr/bin/* $(PUSRBIN_DIR)
-	cp -R rel/stanchion/bin/* $(PBIN_DIR)
+	for f in stanchion-admin stanchion-debug; do \
+	    cp -R rel/stanchion/bin/$$f $(PUSRBIN_DIR); \
+	done
+	cp -R rel/stanchion/usr/bin/stanchion $(PUSRBIN_DIR)
+	cp -R rel/stanchion/bin $(PLIB_DIR);
 	mkdir -p $(PETC_DIR)
 	cp -R rel/stanchion/etc/* $(PETC_DIR)
 	mkdir -p $(PLIB_DIR)

@@ -3,8 +3,8 @@ Description=Serialization service for Riak CS
 
 [Service]
 User=stanchion
-ExecStart=/usr/bin/stanchion start
-ExecStop=/usr/bin/stanchion stop
+ExecStart=/usr/sbin/stanchion start
+ExecStop=/usr/sbin/stanchion stop
 Type=exec
 PIDFile=/run/stanchion/stanchion.pid
 EnvironmentFile=-/etc/default/stanchion
