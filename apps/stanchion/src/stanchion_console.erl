@@ -30,7 +30,7 @@
 %% Public API
 %% ===================================================================
 
-version([]) ->
+version(_) ->
     {ok, Vsn} = application:get_env(stanchion, stanchion_version),
     io:format("version : ~p~n", [Vsn]),
     ok.

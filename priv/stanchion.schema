@@ -1,5 +1,15 @@
 %%-*- mode: erlang -*-
 
+%% @doc Version number. Intended use is to facilitate selective
+%% support of features in the context of migration, where nodes
+%% running different versions coexist in the same cluster. As
+%% stanchion is not intended to ever run in clusters, this setting is
+%% only used for reporting (via `stanchion admin version`).
+{mapping, "stanchion_version", "stanchion.stanchion_version", [
+  {default, {{stanchion_version}} },
+  {datatype, integer}
+]}.
+
 %% @doc listen port and IP address
 {mapping, "listener", "stanchion.host", [
   {default, {"{{stanchion_ip}}" , {{stanchion_port}} }},
