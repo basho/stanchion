@@ -25,8 +25,8 @@
 
 RUNNER_GEN_DIR="${RUNNER_GEN_DIR:-{{platform_gen_dir}}}"
 RELX_STANCHION={{platform_bin_dir}}/stanchion
-PID_DIR={{pid_dir}}
-PIPE_DIR={{pipe_dir}}/   # terminating / (relx treats it as a prefix)
+export PID_DIR={{pid_dir}}
+export PIPE_DIR={{pipe_dir}}/   # terminating / (relx treats it as a prefix)
 
 mkdir -p $PID_DIR $PIPE_DIR
 chown stanchion:stanchion $PID_DIR $PIPE_DIR
@@ -65,10 +65,10 @@ function maybe_su {
 	f=$RUNNER_GEN_DIR/su_piggy
 	cat >$f <<EOF
 #!/bin/sh
-NODETOOL_NODE_PREFIX=${NODETOOL_NODE_PREFIX} PIPE_DIR=$PIPE_DIR $*
+$*
 EOF
 	chmod +x $f
-	$SU - stanchion $f
+	$SU stanchion -c "$f"
     fi
 }
 
