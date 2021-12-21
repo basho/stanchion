@@ -24,9 +24,6 @@ clean:
 distclean: clean devclean relclean
 	@rm -rf _build
 
-parity-test:
-	@python test/prototype_parity.py -v
-
 ##
 ## Release targets
 ##
