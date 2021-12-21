@@ -7,7 +7,6 @@ ERLANG_BIN       = $(shell dirname $(shell which erl 2>/dev/null) 2>/dev/null)
 OTP_VER          = $(shell erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().')
 REBAR           ?= $(BASE_DIR)/rebar3
 OVERLAY_VARS    ?=
-RELEASE_INSTALL_PREFIX ?= $(shell pwd -P)/rel/stanchion
 
 .PHONY: rel deps test
 
@@ -29,8 +28,6 @@ distclean: clean devclean relclean
 ## Release targets
 ##
 rel: compile
-	@sed -e 's|@RELEASE_INSTALL_PREFIX@|$(RELEASE_INSTALL_PREFIX)|' \
-	    rel/vars.config.src >rel/vars.config
 	@$(REBAR) as rel release
 	@cp -a _build/rel/rel/stanchion rel/
 

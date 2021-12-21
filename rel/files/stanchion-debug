@@ -133,7 +133,8 @@ exit
 ###
 
 # These paths may be overridden with environment variables.
-RUNNER_BASE_DIR={{runner_base_dir}}
+# These paths may be overridden with environment variables.
+RUNNER_BASE_DIR=$(cd `dirname $0` && /bin/pwd -P)/..
 stanchion_base_dir={{runner_base_dir}}
 stanchion_bin_dir={{runner_script_dir}}
 stanchion_etc_dir={{runner_etc_dir}}
