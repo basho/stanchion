@@ -132,13 +132,11 @@ exit
 ### Set up variables
 ###
 
-# These paths may be overridden with environment variables.
-# These paths may be overridden with environment variables.
-RUNNER_BASE_DIR=$(cd `dirname $0` && /bin/pwd -P)/..
-stanchion_base_dir={{runner_base_dir}}
-stanchion_bin_dir={{runner_script_dir}}
-stanchion_etc_dir={{runner_etc_dir}}
-stanchion_log_dir={{runner_log_dir}}
+STANCHION_PATH="${STANCHION_PATH:-$(cd $(dirname "$0")/.. && pwd -P)}"
+stanchion_base_dir={{platform_base_dir}}
+stanchion_bin_dir={{platform_bin_dir}}
+stanchion_etc_dir={{platform_etc_dir}}
+stanchion_log_dir={{platform_log_dir}}
 stanchion_lib_dir={{platform_lib_dir}}
 stanchion_gen_dir={{platform_gen_dir}}
 
@@ -527,7 +525,7 @@ if [ 1 -eq $get_logs ]; then
     elif [ -z "$new_format_lager_files" ]; then
         lager_files="`epath 'lager handlers lager_file_backend' "$riak_epaths" | cut -d' ' -f 1 | sed -e 's/^"//' -e 's/".*$//'`"
     else
-        lager_files=$new_format_lager_files
+        lager_files=`eval echo "$new_format_lager_files"`
     fi
     lager_num=0
     for lager_path in $lager_files; do
