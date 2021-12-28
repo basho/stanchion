@@ -5,27 +5,17 @@
 SCRIPT="stanchion-admin"
 
 PLATFORM_BASE_DIR=${STANCHION_PATH:-$(cd $(dirname "$0")/.. && pwd -P)}
-RPC_HOP="$PLATFORM_BASE_DIR/bin/stanchion rpc"
+
+PLATFORM_BIN_DIR={{platform_bin_dir}}
+if [ "$PLATFORM_BIN_DIR" = "${PLATFORM_BIN_DIR#/}" ]; then
+    PLATFORM_BIN_DIR=$PLATFORM_BASE_DIR/$PLATFORM_BIN_DIR
+fi
+
+RPC_HOP="${PLATFORM_BIN_DIR}/stanchion rpc"
 
 # if we ever need to start a separate node to do fancier stuff than we
-# can via rpc, here are the ingredients:
-#
-# ERTS_PATH="{{platform_bin_dir}}/../erts/bin"
-# COOKIE=`egrep '^[ \t]*distributed_cookie[ \t]*=[ \t]*' {{platform_etc_dir}}/stanchion-cs.conf 2> /dev/null | cut -d = -f 2 | tr -d ' '`
-# NODE={{node}}
-# HOST=${NODE#*@}
-# BOOT_FILE="{{runner_base_dir}}/releases/{{release_version}}/start_clean"
-#
-# for something like this:
-#
-#      $ERTS_PATH/erl -noshell -name stanchion_test@$HOST -setcookie $COOKIE \
-#                  -pa {{runner_patch_dir}} \
-#                  -boot $BOOT_FILE \
-#                  -eval "case catch(stanchion:client_test(\"$NODE\")) of \
-#                          ok -> init:stop();                             \
-#                          _  -> init:stop(1)                             \
-#                         end."
-#
+# can via rpc, see how this is done in riak/rel/files/riak-admin
+
 
 usage() {
     echo "Usage: $SCRIPT { version | status }"

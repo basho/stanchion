@@ -132,13 +132,41 @@ exit
 ### Set up variables
 ###
 
+is_relative() {
+    if [ "${1#/}" = "$1" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
 STANCHION_PATH="${STANCHION_PATH:-$(cd $(dirname "$0")/.. && pwd -P)}"
-stanchion_base_dir={{platform_base_dir}}
-stanchion_bin_dir={{platform_bin_dir}}
-stanchion_etc_dir={{platform_etc_dir}}
-stanchion_log_dir={{platform_log_dir}}
-stanchion_lib_dir={{platform_lib_dir}}
-stanchion_gen_dir={{platform_gen_dir}}
+PLATFORM_BASE_DIR={{platform_base_dir}}
+stanchion_base_dir=$PLATFORM_BASE_DIR
+if is_relative "{{platform_bin_dir}}"; then
+    stanchion_bin_dir="$PLATFORM_BASE_DIR/{{platform_bin_dir}}"
+else
+    stanchion_bin_dir="{{platform_bin_dir}}"
+fi
+if is_relative "{{platform_etc_dir}}"; then
+    stanchion_etc_dir="$PLATFORM_BASE_DIR/{{platform_etc_dir}}"
+else
+    stanchion_etc_dir="{{platform_etc_dir}}"
+fi
+if is_relative "{{platform_log_dir}}"; then
+    stanchion_log_dir="$PLATFORM_BASE_DIR/{{platform_log_dir}}"
+else
+    stanchion_log_dir="{{platform_log_dir}}"
+fi
+if is_relative "{{platform_lib_dir}}"; then
+    stanchion_lib_dir="$PLATFORM_BASE_DIR/{{platform_lib_dir}}"
+else
+    stanchion_lib_dir="{{platform_lib_dir}}"
+fi
+if is_relative "{{platform_gen_dir}}"; then
+    stanchion_gen_dir="$PLATFORM_BASE_DIR/{{platform_gen_dir}}"
+else
+    stanchion_gen_dir="{{platform_gen_dir}}"
+fi
 
 cuttlefish_conf_dir=${stanchion_gen_dir}/generated.conf
 
