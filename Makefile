@@ -54,6 +54,10 @@ rel-docker: compile relclean
 relclean:
 	rm -rf _build/rel rel/stanchion
 
+test:
+	$(REBAR) eunit
+	$(REBAR) dialyzer
+
 ##
 ## Developer targets
 ##
