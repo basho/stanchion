@@ -1,10 +1,10 @@
 * Stanchion 3.0.0 Release Notes
 ** Changes
 - This release is to be used with Riak CS 3.0.0. It requires
-  OTP-22 and rebar3, with no changes that would affect the users
+  OTP-22 and rebar3, with no changes that would affect the user
   otherwise.
 - Packages (rpm and deb) now rely on systemd, currently available for
-  Centos 8 and Debian 11.
+  Centos 7 and 8, Debian 8 and 11, FreeBSD 13 and OSX 14.
 - A Dockerfile.
 * Stanchion 2.1.2 Release Notes
 ** Additions

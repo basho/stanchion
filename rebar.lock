@@ -31,7 +31,7 @@
   2},
  {<<"rcs_common">>,
   {git,"git://github.com/TI-Tokyo/rcs_common.git",
-       {ref,"5936595fc05bf13325590c88e7f3c561ff48a210"}},
+       {ref,"d968d008372052482632886d763188d20d470cc8"}},
   0},
  {<<"riak_pb">>,
   {git,"https://github.com/basho/riak_pb",
