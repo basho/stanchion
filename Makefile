@@ -43,6 +43,11 @@ rel-fbsdng: compile relclean
 	@$(REBAR) as fbsdng release
 	@cp -a _build/fbsdng/rel/stanchion rel/
 
+rel-alpine: compile relclean
+	@$(REBAR) as alpine release
+	@(cd _build/alpine/rel/stanchion/usr/bin && mv stanchion.nosu stanchion)
+	@cp -a _build/alpine/rel/stanchion rel/
+
 rel-osx: compile relclean
 	@$(REBAR) as osx release
 	@cp -a _build/osx/rel/stanchion rel/
