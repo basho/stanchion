@@ -4,7 +4,7 @@ PKG_REVISION    ?= $(shell git describe --tags 2>/dev/null)
 PKG_BUILD        = 1
 BASE_DIR         = $(shell pwd)
 ERLANG_BIN       = $(shell dirname $(shell which erl 2>/dev/null) 2>/dev/null)
-OTP_VER          = $(shell erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().')
+OTP_VER          = $(shell erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell)
 REBAR           ?= $(BASE_DIR)/rebar3
 OVERLAY_VARS    ?=
 
@@ -16,7 +16,7 @@ compile: deps
 	@($(REBAR) compile)
 
 deps:
-	@$(REBAR) get-deps
+	@$(REBAR) upgrade --all
 
 clean:
 	@$(REBAR) clean
@@ -32,63 +32,43 @@ rel: compile
 	@cp -a _build/rel/rel/stanchion rel/
 
 rel-rpm: compile relclean
-	$(REBAR) as rpm release
-	cp -a _build/rpm/rel/stanchion rel/
+	@$(REBAR) as rpm release
+	@cp -a _build/rpm/rel/stanchion rel/
 
 rel-deb: compile relclean
-	$(REBAR) as deb release
-	cp -a _build/deb/rel/stanchion rel/
+	@$(REBAR) as deb release
+	@cp -a _build/deb/rel/stanchion rel/
 
 rel-fbsdng: compile relclean
-	$(REBAR) as fbsdng release
-	cp -a _build/fbsdng/rel/stanchion rel/
+	@$(REBAR) as fbsdng release
+	@cp -a _build/fbsdng/rel/stanchion rel/
 
 rel-osx: compile relclean
-	$(REBAR) as osx release
-	cp -a _build/osx/rel/stanchion rel/
+	@$(REBAR) as osx release
+	@cp -a _build/osx/rel/stanchion rel/
 
 rel-docker: compile relclean
-	REBAR_CONFIG=rebar.docker.config $(REBAR) release
-	cp -a _build/default/rel/stanchion rel/
+	@REBAR_CONFIG=rebar.docker.config $(REBAR) release
+	@cp -a _build/default/rel/stanchion rel/
 
 relclean:
-	rm -rf _build/rel rel/stanchion
+	@rm -rf _build/rel rel/stanchion
 
 test:
-	$(REBAR) eunit
-	$(REBAR) dialyzer
+	@$(REBAR) eunit
+	@$(REBAR) dialyzer
 
 ##
 ## Developer targets
 ##
-stage : rel
-	$(foreach dep,$(wildcard deps/*), rm -rf rel/stanchion/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/stanchion/lib;)
-	$(foreach app,$(wildcard apps/*), rm -rf rel/stanchion/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/stanchion/lib;)
-
 devrel: all
-	mkdir -p dev
+	@mkdir -p dev
 	@$(REBAR) as rel release -o dev --overlay_vars rel/dev_vars.config
 
 stagedevrel: devrel
 
 devclean: clean
 	rm -rf dev
-
-##
-## Doc targets
-##
-orgs: orgs-doc orgs-README
-
-orgs-doc:
-	@emacs -l orgbatch.el -batch --eval="(riak-export-doc-dir \"doc\" 'html)"
-
-orgs-README:
-	@emacs -l orgbatch.el -batch --eval="(riak-export-doc-file \"README.org\" 'ascii)"
-	@mv README.txt README
-
-DIALYZER_APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
-	xmerl webtool eunit syntax_tools compiler
-PLT ?= $(HOME)/.stanchion_dialyzer_plt
 
 ##
 ## Version and naming variables for distribution and packaging
