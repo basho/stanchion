@@ -3,11 +3,10 @@
 RUNNER_GEN_DIR={{platform_gen_dir}}
 RELX_RIAK={{platform_bin_dir}}/stanchion
 export PID_DIR={{pid_dir}}
-export PIPE_DIR={{pipe_dir}}/   # terminating / (relx treats it as a prefix)
 
 PID_FILE=$PID_DIR/stanchion.pid
 
-mkdir -p $PID_DIR $PIPE_DIR
+mkdir -p $PID_DIR
 
 function write_pid_file {  # relx doesn't write the pid file
     local c=3
