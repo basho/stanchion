@@ -4,7 +4,8 @@
 
 SCRIPT="stanchion-admin"
 
-PLATFORM_BASE_DIR=${STANCHION_PATH:-$(cd $(dirname "$0")/.. && pwd -P)}
+PLATFORM_BASE_DIR={{platform_base_dir}}
+PLATFORM_BASE_DIR=${PLATFORM_BASE_DIR:-$(cd $(dirname "$0")/.. && pwd -P)}
 
 PLATFORM_BIN_DIR={{platform_bin_dir}}
 if [ "$PLATFORM_BIN_DIR" = "${PLATFORM_BIN_DIR#/}" ]; then
