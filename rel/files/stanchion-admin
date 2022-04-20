@@ -12,7 +12,11 @@ if [ "$PLATFORM_BIN_DIR" = "${PLATFORM_BIN_DIR#/}" ]; then
     PLATFORM_BIN_DIR=$PLATFORM_BASE_DIR/$PLATFORM_BIN_DIR
 fi
 
-RPC_HOP="${PLATFORM_BIN_DIR}/stanchion rpc"
+PLATFORM_LIB_DIR={{platform_lib_dir}}
+if [ "$PLATFORM_LIB_DIR" = "${PLATFORM_LIB_DIR#/}" ]; then
+    PLATFORM_LIB_DIR=$PLATFORM_BASE_DIR/$PLATFORM_LIB_DIR
+fi
+. $PLATFORM_LIB_DIR/lib.sh
 
 # if we ever need to start a separate node to do fancier stuff than we
 # can via rpc, see how this is done in riak/rel/files/riak-admin
@@ -26,11 +30,11 @@ usage() {
 case "$1" in
     version)
         shift
-        $RPC_HOP stanchion_console version "[[]]"
+        rpc stanchion_console version
         ;;
     status)
         shift
-        $RPC_HOP stanchion_console status "[[]]"
+        rpc stanchion_console status
         ;;
     *)
         usage

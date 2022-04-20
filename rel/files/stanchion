@@ -26,6 +26,7 @@
 RUNNER_GEN_DIR={{platform_gen_dir}}
 RELX_STANCHION={{platform_bin_dir}}/stanchion
 export PID_DIR={{pid_dir}}
+export RUNNER_LOG_DIR={{platform_log_dir}}
 
 mkdir -p $PID_DIR
 chown stanchion:stanchion $PID_DIR
