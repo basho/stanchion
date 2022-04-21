@@ -32,11 +32,11 @@ mkdir -p $PID_DIR
 chown stanchion:stanchion $PID_DIR
 
 # centos7-based distros have a su that contacts pam and prints the "Last logged in" message
-if [ "`cat /etc/redhat-release 2>&1`" = "CentOS Stream release 8" ] ||
+if [ "`cat /etc/redhat-release 2>&1`" = "CentOS Stream release 7" ] ||
    [ "`cat /etc/system-release 2>&1`" = "Amazon Linux release 2 (Karoo)" ]; then
-    SU="su --session-command"
+    COPTION="--session-command"
 else
-    SU=su
+    COPTION="-c"
 fi
 
 function maybe_su {
@@ -60,7 +60,7 @@ $*
 EOF
 	chmod +x "$f"
 	chown stanchion:stanchion "$f"
-	$SU stanchion -c "$f"
+	su stanchion $COPTION "$f"
         rm -f "$f"
     fi
 }
