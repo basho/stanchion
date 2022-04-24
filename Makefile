@@ -10,9 +10,9 @@ OVERLAY_VARS    ?=
 
 .PHONY: rel deps test
 
-all: deps compile
+all: compile
 
-compile: deps
+compile:
 	@($(REBAR) compile)
 
 deps:
