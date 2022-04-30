@@ -1,6 +1,4 @@
 #!/bin/sh
-# -*- tab-width:4;indent-tabs-mode:nil -*-
-# ex: ts=4 sw=4 et
 
 SCRIPT="stanchion-admin"
 
@@ -18,15 +16,10 @@ if [ "$PLATFORM_LIB_DIR" = "${PLATFORM_LIB_DIR#/}" ]; then
 fi
 . $PLATFORM_LIB_DIR/lib.sh
 
-# if we ever need to start a separate node to do fancier stuff than we
-# can via rpc, see how this is done in riak/rel/files/riak-admin
-
-
 usage() {
     echo "Usage: $SCRIPT { version | status }"
 }
 
-# Check the first argument for instructions
 case "$1" in
     version)
         shift
@@ -41,3 +34,6 @@ case "$1" in
         exit 1
         ;;
 esac
+
+# No explicit exit from within script or nodetool, assumed to have succeeded.
+exit 0
