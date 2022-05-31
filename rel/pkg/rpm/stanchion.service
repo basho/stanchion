@@ -1,0 +1,15 @@
+[Unit]
+Description=Serialization service for Riak CS
+
+[Service]
+User=stanchion
+ExecStart=/usr/sbin/stanchion foreground
+ExecStop=/usr/sbin/stanchion stop
+Type=simple
+
+PIDFile=/run/stanchion/stanchion.pid
+EnvironmentFile=-/etc/default/stanchion
+RuntimeDirectory=stanchion
+
+[Install]
+WantedBy=multi-user.target

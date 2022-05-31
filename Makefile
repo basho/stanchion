@@ -1,107 +1,134 @@
 REPO		?= stanchion
-
-PKG_REVISION    ?= $(shell git describe --tags)
-PKG_VERSION	?= $(shell git describe --tags | tr - .)
-PKG_ID           = stanchion-$(PKG_VERSION)
+HEAD_REVISION   ?= $(shell git describe --tags --exact-match HEAD 2>/dev/null)
+PKG_REVISION    ?= $(shell git describe --tags 2>/dev/null)
 PKG_BUILD        = 1
 BASE_DIR         = $(shell pwd)
-ERLANG_BIN       = $(shell dirname $(shell which erl))
-REBAR           ?= $(BASE_DIR)/rebar
+ERLANG_BIN       = $(shell dirname $(shell which erl 2>/dev/null) 2>/dev/null)
+OTP_VER          = $(shell erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell)
+REBAR           ?= $(BASE_DIR)/rebar3
 OVERLAY_VARS    ?=
 
 .PHONY: rel deps test
 
-all: deps compile
+all: compile
 
-compile: deps
-	@(./rebar compile)
+compile:
+	@($(REBAR) compile)
 
 deps:
-	@./rebar get-deps
+	@$(REBAR) upgrade --all
 
 clean:
-	@./rebar clean
+	@$(REBAR) clean
 
-distclean: clean
-	@./rebar delete-deps
-	@rm -rf $(PKG_ID).tar.gz
-
-parity-test:
-	@python test/prototype_parity.py -v
+distclean: clean devclean relclean
+	@rm -rf _build
 
 ##
 ## Release targets
 ##
-rel: deps compile
-	@./rebar compile
-	@./rebar skip_deps=true generate $(OVERLAY_VARS)
+rel: compile
+	@$(REBAR) as rel release
+	@cp -a _build/rel/rel/stanchion rel/
+
+rel-rpm: compile relclean
+	@$(REBAR) as rpm release
+	@cp -a _build/rpm/rel/stanchion rel/
+
+rel-deb: compile relclean
+	@$(REBAR) as deb release
+	@cp -a _build/deb/rel/stanchion rel/
+
+rel-fbsdng: compile relclean
+	@$(REBAR) as fbsdng release
+	@cp -a _build/fbsdng/rel/stanchion rel/
+
+rel-alpine: compile relclean
+	@$(REBAR) as alpine release
+	@(cd _build/alpine/rel/stanchion/usr/bin && mv stanchion.nosu stanchion)
+	@cp -a _build/alpine/rel/stanchion rel/
+
+rel-osx: compile relclean
+	@$(REBAR) as osx release
+	@cp -a _build/osx/rel/stanchion rel/
+
+rel-docker: compile relclean
+	@REBAR_CONFIG=rebar.docker.config $(REBAR) release
+	@cp -a _build/default/rel/stanchion rel/
 
 relclean:
-	rm -rf rel/stanchion
+	@rm -rf _build/rel rel/stanchion
+
+test:
+	@$(REBAR) eunit
+	@$(REBAR) dialyzer
 
 ##
 ## Developer targets
 ##
-stage : rel
-	$(foreach dep,$(wildcard deps/*), rm -rf rel/stanchion/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/stanchion/lib;)
-	$(foreach app,$(wildcard apps/*), rm -rf rel/stanchion/lib/$(shell basename $(app))-* && ln -sf $(abspath $(app)) rel/stanchion/lib;)
-
 devrel: all
-	mkdir -p dev
-	@./rebar skip_deps=true generate target_dir=../dev/$(REPO) \
-		overlay_vars=dev_vars.config
+	@mkdir -p dev
+	@$(REBAR) as rel release -o dev --overlay_vars rel/dev_vars.config
 
 stagedevrel: devrel
-	$(foreach app,$(wildcard apps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(app))* && ln -sf $(abspath $(app)) dev/$(REPO)/lib;)
-	$(foreach dep,$(wildcard deps/*), rm -rf dev/$(REPO)/lib/$(shell basename $(dep))* && ln -sf $(abspath $(dep)) dev/$(REPO)/lib;)
 
 devclean: clean
 	rm -rf dev
 
 ##
-## Doc targets
+## Version and naming variables for distribution and packaging
 ##
-orgs: orgs-doc orgs-README
 
-orgs-doc:
-	@emacs -l orgbatch.el -batch --eval="(riak-export-doc-dir \"doc\" 'html)"
+# Tag from git with style <tagname>-<commits_since_tag>-<current_commit_hash>
+# Ex: When on a tag:            riak-1.0.3   (no commits since tag)
+#     For most normal Commits:  riak-1.1.0pre1-27-g1170096
+#                                 Last tag:          riak-1.1.0pre1
+#                                 Commits since tag: 27
+#                                 Hash of commit:    g1170096
+REPO_TAG 	:= $(shell git describe --tags)
 
-orgs-README:
-	@emacs -l orgbatch.el -batch --eval="(riak-export-doc-file \"README.org\" 'ascii)"
-	@mv README.txt README
+# Split off repo name
+# Changes to 1.0.3 or 1.1.0pre1-27-g1170096 from example above
+REVISION = $(shell echo $(REPO_TAG) | sed -e 's/^$(REPO)-//')
 
-DIALYZER_APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
-	xmerl webtool eunit syntax_tools compiler
-PLT ?= $(HOME)/.stanchion_dialyzer_plt
+# Primary version identifier, strip off commmit information
+# Changes to 1.0.3 or 1.1.0pre1 from example above
+MAJOR_VERSION	?= $(shell echo $(REVISION) | sed -e 's/\([0-9.]*\)-.*/\1/')
+
+# Name resulting directory & tar file based on current status of the git tag
+# If it is a tagged release (PKG_VERSION == MAJOR_VERSION), use the toplevel
+#   tag as the package name, otherwise generate a unique hash of all the
+#   dependencies revisions to make the package name unique.
+#   This enables the toplevel repository package to change names
+#   when underlying dependencies change.
+NAME_HASH = $(shell git hash-object distdir/$(CLONEDIR)/$(MANIFEST_FILE) 2>/dev/null | cut -c 1-8)
+PKG_ID := "$(REPO_TAG)-OTP$(OTP_VER)"
 
 ##
 ## Packaging targets
 ##
+
+# Yes another variable, this one is repo-<generatedhash
+# which differs from $REVISION that is repo-<commitcount>-<commitsha>
+PKG_VERSION = $(shell echo $(PKG_ID) | sed -e 's/^$(REPO)-//')
+
+package:
+	mkdir -p rel/pkg/out/stanchion-$(PKG_ID)
+	git archive --format=tar HEAD | gzip >rel/pkg/out/$(PKG_ID).tar.gz
+	$(MAKE) -f rel/pkg/Makefile
+
+packageclean:
+	rm -rf rel/pkg/out/*
+
+
 .PHONY: package
 export PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE
 
-package.src: deps
-	mkdir -p package
-	rm -rf package/$(PKG_ID)
-	git archive --format=tar --prefix=$(PKG_ID)/ $(PKG_REVISION)| (cd package && tar -xf -)
-	${MAKE} -C package/$(PKG_ID) deps
-	mkdir -p package/$(PKG_ID)/priv
-	git --git-dir=.git describe --tags >package/$(PKG_ID)/priv/vsn.git
-	for dep in package/$(PKG_ID)/deps/*; do \
-             echo "Processing dep: $${dep}"; \
-             mkdir -p $${dep}/priv; \
-             git --git-dir=$${dep}/.git describe --tags >$${dep}/priv/vsn.git; \
-        done
-	find package/$(PKG_ID) -depth -name ".git" -exec rm -rf {} \;
-	tar -C package -czf package/$(PKG_ID).tar.gz $(PKG_ID)
+# Package up a devrel to save time later rebuilding it
+pkg-devrel: devrel
+	echo -n $(PKG_REVISION) > VERSION
+	tar -czf $(PKG_ID)-devrel.tar.gz dev/ VERSION
+	rm -rf VERSION
 
-dist: package.src
-	cp package/$(PKG_ID).tar.gz .
-
-package: package.src
-	${MAKE} -C package -f $(PKG_ID)/deps/node_package/Makefile
-
-pkgclean: distclean
-	rm -rf package
-
-include tools.mk
+pkg-rel: rel
+	tar -czf $(PKG_ID)-rel.tar.gz -C rel/ .

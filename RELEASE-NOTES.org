@@ -1,5 +1,38 @@
+* Stanchion 3.0.0 Release Notes
+** Changes
+- This release is to be used with Riak CS 3.0.0. It requires
+  OTP-22 and rebar3, with no changes that would affect the user
+  otherwise.
+- Packages (rpm and deb) now rely on systemd, currently available for
+  Centos 7 and 8, Debian 8 and 11, FreeBSD 13 and OSX 14.
+- A Dockerfile.
+* Stanchion 2.1.2 Release Notes
+** Additions
+- Update to node_package 3.0.0
+* Stanchion 2.1.1 Release Notes
+** Bugs Fixed
+- Remove admin.secret from configuration (riak_cs/#1274)
+* Stanchion 2.1.0 Release Notes
+** Additions
+- Add statistics reporting
+- Add exometer_core 1.2
+- Update to cuttlefish 2.0.4
+- Update to eper 0.92-basho1
+- Update to lager 2.2.0
+- Update to lager_syslog 2.1.1
+- Update to node_package 2.0.3
+- Update to riakc 2.1.1
+* Stanchion 2.0.0 Release Notes
+** Additions
+- Change to cuttlefish-based configuration
+- Add cuttlefish 2.0.1
+- Update to eper 0.78
+- Update to node_package 2.0.1
+- Update to riakc 2.1.0
+- Update to webmachine 1.10.8
+- Update to Erlang/OTP R16B02
 * Stanchion 1.5.0 Release Notes
-** Addisions
+** Additions
 - Update to lager 2.0.3
 - Compiles with R16B0x (Releases still by R15B01)
 ** Bugs Fixed

@@ -1,0 +1,8 @@
+rel/stanchion/lib usr/lib/stanchion
+rel/stanchion/share usr/lib/stanchion
+rel/stanchion/erts* usr/lib/stanchion
+rel/stanchion/releases usr/lib/stanchion
+rel/stanchion/bin/stanchion-* usr/sbin
+rel/stanchion/usr/bin/stanchion usr/sbin
+rel/stanchion/bin usr/lib/stanchion
+rel/stanchion/etc/* etc/stanchion
